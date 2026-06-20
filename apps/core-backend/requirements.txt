@@ -6,3 +6,4 @@ stripe>=11.0.0
 python-jose[cryptography]>=3.3.0
 passlib[argon2]>=1.7.4
 yt-dlp>=2026.03.00
+python-multipart>=0.0.12
