@@ -21,7 +21,6 @@ async def create_checkout_session(request: Request) -> dict[str, str]:
             detail="ID do preço do Stripe não configurado no servidor.",
         )
 
-    # Validação e higienização rigorosa da URL base do front-end
     base_url = str(settings.FRONTEND_URL).strip().rstrip("/")
     if not base_url.startswith("http://") and not base_url.startswith("https://"):
         base_url = f"https://{base_url}"
