@@ -48,8 +48,8 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
         except Exception:
             pass
 
-    # Removido o filtro de formato estrito para evitar o erro de formato indisponível
     ydl_opts: dict[str, Any] = {
+        "format": "best",
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
