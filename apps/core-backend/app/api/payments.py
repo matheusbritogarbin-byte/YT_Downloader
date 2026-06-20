@@ -21,6 +21,11 @@ async def create_checkout_session(request: Request) -> dict[str, str]:
             detail="ID do preço do Stripe não configurado no servidor.",
         )
 
+    # Validação e higienização rigorosa da URL base do front-end
+    base_url = str(settings.FRONTEND_URL).strip().rstrip("/")
+    if not base_url.startswith("http://") and not base_url.startswith("https://"):
+        base_url = f"https://{base_url}"
+
     try:
         session = stripe.checkout.Session.create(
             mode="subscription",
@@ -31,15 +36,14 @@ async def create_checkout_session(request: Request) -> dict[str, str]:
                     "quantity": 1,
                 }
             ],
-            success_url=f"{settings.FRONTEND_URL}/success.html?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{settings.FRONTEND_URL}/cancel.html",
+            success_url=f"{base_url}/success.html?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{base_url}/cancel.html",
             customer_email=user_email,
             metadata={"user_email": user_email},
         )
         return {"checkout_url": str(session.url)}
 
     except Exception as e:
-        # Exibe o erro real vindo do Stripe diretamente nos logs do Railway
         print(f"❌ ERRO CRÍTICO NO STRIPE CHECKOUT: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
