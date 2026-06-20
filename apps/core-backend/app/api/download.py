@@ -56,8 +56,8 @@ def extrair_midia_com_seguranca(
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
-        "allowed_extractors": ["youtube"],
-        "client": "tv",
+        "username": "oauth2",
+        "password": "",
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
@@ -122,7 +122,8 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        client_ip = str(raw_ip).split(",")[0].strip()
+        ip_list = str(raw_ip).split(",")
+        client_ip = str(ip_list).strip()
     except Exception:
         client_ip = "127.0.0.1"
 
