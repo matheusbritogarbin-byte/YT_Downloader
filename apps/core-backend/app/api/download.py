@@ -37,7 +37,7 @@ class BatchDownloadResponse(BaseModel):
     results: list[DownloadResponseItem]
 
 
-def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
+def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
     cookie_path = "/tmp/youtube_cookies.txt"
     cookies_content = os.getenv("YOUTUBE_COOKIES_DATA", "")
 
@@ -48,13 +48,14 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
         except Exception:
             pass
 
-    # Remoção total do parâmetro "format" para extrair os metadados puros sem travar nos codecs
+    format_opt = "worstaudio/worst" if not is_premium else "bestvideo+bestaudio/best"
+
     ydl_opts: dict[str, Any] = {
+        "format": format_opt,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "noplaylist": True,
-        "extract_flat": False,
         "allowed_extractors": ["youtube"],
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -73,12 +74,15 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
             duration = info.get("duration")
             thumbnail = info.get("thumbnail")
 
-            # Se o YouTube não der uma URL unificada, pegamos o link direto da melhor stream de mídia disponível
             download_url = info.get("url")
             if not download_url and info.get("formats"):
                 formats = info.get("formats", [])
                 if formats:
-                    download_url = formats[-1].get("url")
+                    download_url = (
+                        formats[0].get("url")
+                        if not is_premium
+                        else formats[-1].get("url")
+                    )
 
             return {
                 "title": str(title) if title is not None else "Vídeo Sem Título",
@@ -99,9 +103,13 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
         }
 
 
-async def processar_item_async(item: DownloadItemRequest) -> dict[str, Any]:
+async def processar_item_async(
+    item: DownloadItemRequest, is_premium: bool
+) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
-    res = await loop.run_in_executor(None, extrair_midia_com_seguranca, str(item.url))
+    res = await loop.run_in_executor(
+        None, extrair_midia_com_seguranca, str(item.url), is_premium
+    )
     res["url"] = item.url
     return res
 
@@ -144,7 +152,7 @@ async def process_youtube_video(
                 detail=f"URL inválida ou não suportada: {item.url}",
             )
 
-    tasks = [processar_item_async(item) for item in request.items]
+    tasks = [processar_item_async(item, is_premium) for item in request.items]
     raw_results = await asyncio.gather(*tasks)
 
     results_list = [
