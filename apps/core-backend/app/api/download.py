@@ -41,16 +41,16 @@ def extrair_midia_com_seguranca(
     url: str, quality_profile: str, is_premium: bool
 ) -> dict[str, Any]:
     if not is_premium:
-        format_opt = "bestaudio/best"
+        format_opt = "best/bestaudio"
     else:
         if quality_profile == "mp4_1080p":
             format_opt = "bestvideo[height<=1080]+bestaudio/best"
         elif quality_profile == "mp4_720p":
             format_opt = "bestvideo[height<=720]+bestaudio/best"
         elif quality_profile == "mp3_320k":
-            format_opt = "bestaudio/best"
+            format_opt = "best/bestaudio"
         else:
-            format_opt = "bestaudio/best"
+            format_opt = "best/bestaudio"
 
     cookie_path = "/tmp/youtube_cookies.txt"
     cookies_content = os.getenv("YOUTUBE_COOKIES_DATA", "")
