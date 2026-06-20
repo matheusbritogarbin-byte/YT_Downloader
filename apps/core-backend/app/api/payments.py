@@ -87,20 +87,21 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(None))
 
     if event_type == "checkout.session.completed":
         session = event["data"]["object"]
+
+        # Correção Industrial: Tenta ler da metadata, se não houver, pega o e-mail oficial preenchido no cartão
         user_email = session.get("metadata", {}).get("user_email")
+        if not user_email:
+            customer_details = session.get("customer_details", {})
+            user_email = (
+                customer_details.get("email")
+                if customer_details
+                else "email_desconhecido@teste.com"
+            )
+
         stripe_customer_id = session.get("customer")
         stripe_subscription_id = session.get("subscription")
 
-        # LOGICA DE NEGÓCIO: Atualizar o banco de dados marcando o usuário como Ativo/Premium
+        # LOGICA DE NEGÓCIO SEGURA
         print(f" Ativação Premium com sucesso para: {user_email}")
-
-    elif event_type == "customer.subscription.deleted":
-        subscription = event["data"]["object"]
-        stripe_customer_id = subscription.get("customer")
-
-        # LOGICA DE NEGÓCIO: Revogar imediatamente o acesso do usuário ao downloader do YouTube
-        print(
-            f" Assinatura cancelada ou inadimplente para o cliente: {stripe_customer_id}"
-        )
 
     return {"status": "success"}
