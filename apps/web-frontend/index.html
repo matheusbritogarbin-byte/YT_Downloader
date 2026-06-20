@@ -3,52 +3,173 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YT Downloader - Premium</title>
-    <!-- Tailwind CSS v4 via CDN para renderização limpa, ultra rápida e responsiva -->
+    <title>YT Downloader</title>
     <script src="https://jsdelivr.net"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 flex items-center justify-center min-h-screen font-sans antialiased selection:bg-red-500/30 selection:text-red-200">
+<body class="bg-slate-950 text-slate-100 flex flex-col justify-between min-h-screen font-sans antialiased selection:bg-red-500/30 selection:text-red-200">
 
-    <main class="max-w-md w-full mx-4 p-8 bg-slate-900 rounded-2xl shadow-2xl border border-slate-800/80 text-center relative overflow-hidden">
-        <!-- Detalhe sutil de iluminação no topo do card -->
-        <div class="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-40 bg-red-500/10 rounded-full blur-2xl pointer-events-none"></div>
+    <header class="w-full max-w-md mx-auto px-4 pt-6 flex justify-end">
+        <button onclick="openPremiumModal('upgrade')" class="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-bold uppercase tracking-wider rounded-xl shadow-md transition-all duration-150 cursor-pointer active:scale-95">
+            Upgrade Premium
+        </button>
+    </header>
 
-        <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500 mb-2 tracking-tight">
-            YT Downloader
-        </h1>
-        <p class="text-slate-400 mb-8 text-sm font-medium">Download de vídeos em alta velocidade e segurança máxima.</p>
+    <main class="flex-grow flex items-center justify-center p-4">
+        <div class="max-w-md w-full p-8 bg-slate-900 rounded-2xl shadow-2xl border border-slate-800/80 text-center relative overflow-hidden">
+            <div class="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-40 bg-red-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
-        <!-- Formulário principal (Sanitizado) -->
-        <form id="downloadForm" class="space-y-4" onsubmit="event.preventDefault();">
-            <div class="relative">
-                <input 
-                    type="url" 
-                    id="videoUrl"
-                    placeholder="Cole o link do YouTube aqui..." 
-                    required
-                    class="w-full px-4 py-3.5 bg-slate-950 rounded-xl border border-slate-800 focus:border-red-500/50 focus:ring-2 focus:ring-red-500/10 text-slate-200 placeholder-slate-500 text-sm outline-none transition-all duration-200"
-                />
-            </div>
-            
-            <button 
-                type="submit"
-                class="w-full py-3.5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 font-semibold rounded-xl shadow-lg shadow-red-950/20 active:scale-[0.98] transition-all duration-150 cursor-pointer"
-            >
-                Processar Vídeo
-            </button>
-        </form>
+            <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500 mb-2 tracking-tight">
+                YT Downloader
+            </h1>
+            <p class="text-slate-400 mb-8 text-sm font-medium">Download de vídeos em alta velocidade e segurança máxima.</p>
 
-        <!-- Status / Área informativa -->
-        <div class="mt-6 pt-6 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-500">
-            <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>API Conectada</span>
-            </div>
-            <div>
-                <span>Plano Premium: <strong class="text-amber-500 font-semibold">R$ 4,99/mês</strong></span>
+            <form id="downloadForm" class="space-y-4">
+                <div class="relative">
+                    <input 
+                        type="url" 
+                        id="videoUrl"
+                        placeholder="Cole o link do YouTube aqui..." 
+                        required
+                        class="w-full px-4 py-3.5 bg-slate-950 rounded-xl border border-slate-800 focus:border-red-500/50 focus:ring-2 focus:ring-red-500/10 text-slate-200 placeholder-slate-500 text-sm outline-none transition-all duration-200"
+                    />
+                </div>
+                
+                <button 
+                    type="submit"
+                    class="w-full py-3.5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 font-semibold rounded-xl shadow-lg shadow-red-950/20 active:scale-[0.98] transition-all duration-150 cursor-pointer"
+                >
+                    Processar Vídeo
+                </button>
+            </form>
+
+            <div id="statusAlert" class="mt-4 hidden p-3 rounded-xl border text-xs font-semibold text-center"></div>
+
+            <div class="mt-6 pt-6 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-500">
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Cota Gratuita: <span id="cotaContador" class="text-slate-300 font-bold">2/2</span></span>
+                </div>
+                <div>
+                    <span>Plano Premium: <strong class="text-amber-500 font-semibold">R$ 4,99/mês</strong></span>
+                </div>
             </div>
         </div>
     </main>
 
+    <div id="premiumModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-all duration-200">
+        <div class="max-w-sm w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-2xl text-center transform scale-95 transition-all duration-200">
+            <div class="w-12 h-12 bg-gradient-to-tr from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shadow-lg mx-auto mb-4">
+                <svg class="w-6 h-6 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+                </svg>
+            </div>
+            
+            <h2 id="modalTitle" class="text-xl font-black text-white tracking-tight mb-2">Limite Diário Atingido!</h2>
+            <p id="modalDescription" class="text-slate-400 text-xs leading-relaxed mb-4">Você atingiu a cota de 2 downloads gratuitos por dia. Remova todos os limites agora.</p>
+            
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 mb-4 flex items-center justify-between text-left">
+                <div>
+                    <span class="block text-[10px] text-amber-500 font-bold uppercase tracking-wider">Acesso Total</span>
+                    <span class="text-sm font-bold text-white">Plano Premium</span>
+                </div>
+                <div class="text-right">
+                    <span class="block text-xl font-black text-white">R$ 4,99</span>
+                    <span class="block text-[9px] text-slate-500">mensal</span>
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <button onclick="alert('Iniciando integração com Stripe...')" class="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-sm rounded-xl shadow-md transition-all duration-150 cursor-pointer active:scale-95">
+                    Obter Acesso Ilimitado
+                </button>
+                <button onclick="closePremiumModal()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-750 text-slate-400 text-xs font-semibold rounded-xl transition-all duration-150 cursor-pointer">
+                    Voltar ao Painel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="w-full text-center py-4 text-[10px] text-slate-700">
+        <p>&copy; 2026 YT Downloader. Proteção jurídica MIT.</p>
+    </footer>
+
+    <script>
+        const MAX_DOWNLOADS = 2;
+        
+        function getStorageData() {
+            const today = new Date().toISOString().split('T')[0];
+            const storedDate = localStorage.getItem('dl_date');
+            
+            if (storedDate !== today) {
+                localStorage.setItem('dl_date', today);
+                localStorage.setItem('dl_count', '0');
+                return { date: today, count: 0 };
+            }
+            
+            const count = parseInt(localStorage.getItem('dl_count') || '0', 10);
+            return { date: today, count: count };
+        }
+
+        function updateUI() {
+            const data = getStorageData();
+            const restantes = Math.max(0, MAX_DOWNLOADS - data.count);
+            document.getElementById('cotaContador').innerText = `${restantes}/${MAX_DOWNLOADS}`;
+        }
+
+        function incrementCount() {
+            const data = getStorageData();
+            localStorage.setItem('dl_count', (data.count + 1).toString());
+            updateUI();
+        }
+
+        function openPremiumModal(reason) {
+            const modal = document.getElementById('premiumModal');
+            const title = document.getElementById('modalTitle');
+            const desc = document.getElementById('modalDescription');
+            
+            if (reason === 'limit') {
+                title.innerText = 'Limite Diário Atingido!';
+                desc.innerText = 'Você atingiu o teto de 2 extrações gratuitas por dia. Faça o upgrade agora para remover todas as barreiras.';
+            } else {
+                title.innerText = 'Seja Membro Premium';
+                desc.innerText = 'Desbloqueie extrações instantâneas na velocidade máxima, livre de anúncios ou travas diárias.';
+            }
+
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.firstElementChild.classList.remove('scale-95');
+        }
+
+        function closePremiumModal() {
+            const modal = document.getElementById('premiumModal');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            modal.firstElementChild.classList.add('scale-95');
+        }
+
+        document.getElementById('downloadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const statusAlert = document.getElementById('statusAlert');
+            
+            statusAlert.className = "mt-4 hidden p-3 rounded-xl border text-xs font-semibold text-center";
+            statusAlert.innerText = "";
+
+            const data = getStorageData();
+            if (data.count >= MAX_DOWNLOADS) {
+                openPremiumModal('limit');
+                return;
+            }
+
+            statusAlert.classList.remove('hidden');
+            statusAlert.classList.add('bg-blue-500/10', 'border-blue-500/20', 'text-blue-400');
+            statusAlert.innerText = "Conectando ao backend corporativo seguro...";
+
+            setTimeout(() => {
+                incrementCount();
+                statusAlert.className = "mt-4 p-3 rounded-xl border text-xs font-semibold text-center bg-emerald-500/10 border-emerald-500/20 text-emerald-400";
+                statusAlert.innerText = "Processado! Lógica de download estática simulada com sucesso.";
+            }, 1200);
+        });
+
+        window.addEventListener('DOMContentLoaded', updateUI);
+    </script>
 </body>
 </html>

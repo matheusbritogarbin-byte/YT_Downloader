@@ -1,47 +1,51 @@
+from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, status
 import stripe
-from app.api.auth import get_current_user
-from app.core import settings  # Importa o arquivo central de variáveis
+from app.api.auth import get_current_user, TokenData
+from app.core import settings
 
 router = APIRouter(prefix="/payments", tags=["Billing & Payments"])
 
-# Configura o Stripe extraindo o valor limpo de dentro do SecretStr
+if settings.STRIPE_SECRET_KEY is None:
+    raise RuntimeError("Configuração STRIPE_SECRET_KEY corrompida ou ausente.")
+
 stripe.api_key = settings.STRIPE_SECRET_KEY.get_secret_value()
-
-# ID do preço recorrente mensal de R$ 4,99 criado no painel do Stripe
-SUBSCRIPTION_PRICE_ID = "price_placeholder_id"
-
-# --- ROTAS DA API (ENDPOINTS) ---
 
 
 @router.post("/checkout/create-session")
-async def create_checkout_session(current_user: dict = Depends(get_current_user)):
-    """
-    Cria uma sessão de Checkout criptografada e segura na infraestrutura do Stripe.
-    Garante conformidade PCI-DSS absoluta (Zero armazenamento de cartões no nosso banco).
-    """
+async def create_checkout_session(
+    current_user: TokenData = Depends(get_current_user),
+) -> dict[str, str]:
+    if current_user.email is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuário inválido para checkout.",
+        )
+
+    if settings.STRIPE_PRICE_ID_PREMIUM is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="ID do preço do Stripe não configurado no servidor.",
+        )
+
     try:
         session = stripe.checkout.Session.create(
             mode="subscription",
-            payment_method_types=[
-                "card"
-            ],  # Suporte estrito a cartões de crédito industriais
+            payment_method_types=["card"],
             line_items=[
                 {
-                    "price": SUBSCRIPTION_PRICE_ID,
+                    "price": settings.STRIPE_PRICE_ID_PREMIUM,
                     "quantity": 1,
                 }
             ],
-            success_url=f"{FRONTEND_URL}/success.html?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{FRONTEND_URL}/cancel.html",
-            customer_email=current_user.email,  # Vincula o cliente de forma segura pelo e-mail autenticado
+            success_url=f"{settings.FRONTEND_URL}/success.html?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{settings.FRONTEND_URL}/cancel.html",
+            customer_email=current_user.email,
             metadata={"user_email": current_user.email},
         )
-        return {
-            "checkout_url": session.url
-        }  # Retorna o link oficial e seguro da Stripe
+        return {"checkout_url": str(session.url)}
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Erro ao inicializar o gateway de pagamentos seguro.",
@@ -49,54 +53,55 @@ async def create_checkout_session(current_user: dict = Depends(get_current_user)
 
 
 @router.post("/webhook")
-async def stripe_webhook(request: Request, stripe_signature: str = Header(None)):
-    """
-    Endpoint assíncrono blindado para escutar atualizações de cobrança da Stripe.
-    Contém validação de assinatura por criptografia de chave simétrica integrada.
-    """
+async def stripe_webhook(
+    request: Request, stripe_signature: str = Header(None)
+) -> dict[str, str]:
     if not stripe_signature:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Assinatura de segurança ausente.",
         )
 
-    try:
-        # Lê o corpo bruto da requisição (necessário para validar o hash criptográfico)
-        payload = await request.body()
+    if settings.STRIPE_WEBHOOK_SECRET is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Segredo do webhook Stripe não configurado no servidor.",
+        )
 
-        # Constrói o evento garantindo que ele realmente veio da Stripe e não foi alterado
-        event = stripe.Webhook.construct_event(
+    try:
+        payload = await request.body()
+        webhook_helper = cast(Any, stripe.Webhook)
+        event = webhook_helper.construct_event(
             payload, stripe_signature, settings.STRIPE_WEBHOOK_SECRET.get_secret_value()
         )
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Payload inválido."
         )
-    except stripe.error.SignatureVerificationError:
+    except stripe.SignatureVerificationError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Assinatura inválida."
         )
 
-    # --- PROCESSAMENTO SEGURO DE EVENTOS ---
-    event_type = event["type"]
+    event_type = str(event.get("type", ""))
 
     if event_type == "checkout.session.completed":
-        session = event["data"]["object"]
+        event_data = event.get("data")
+        if event_data is not None:
+            session = cast(dict[str, Any], event_data.get("object", {}))
+            metadata = cast(dict[str, Any], session.get("metadata", {}))
 
-        # Correção Industrial: Tenta ler da metadata, se não houver, pega o e-mail oficial preenchido no cartão
-        user_email = session.get("metadata", {}).get("user_email")
-        if not user_email:
-            customer_details = session.get("customer_details", {})
-            user_email = (
-                customer_details.get("email")
-                if customer_details
-                else "email_desconhecido@teste.com"
-            )
+            user_email = metadata.get("user_email")
+            if not user_email:
+                customer_details = cast(
+                    dict[str, Any], session.get("customer_details", {})
+                )
+                user_email = (
+                    customer_details.get("email")
+                    if customer_details
+                    else "email_desconhecido@teste.com"
+                )
 
-        stripe_customer_id = session.get("customer")
-        stripe_subscription_id = session.get("subscription")
-
-        # LOGICA DE NEGÓCIO SEGURA
-        print(f" Ativação Premium com sucesso para: {user_email}")
+            print(f" Ativação Premium com sucesso para: {user_email}")
 
     return {"status": "success"}

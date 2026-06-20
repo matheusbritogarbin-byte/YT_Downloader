@@ -1,29 +1,18 @@
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
+from app.core import settings
 
-# Configuração de Hashing Seguro de Senhas (Bcrypt com fator de custo industrial)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# Configuração do fluxo de leitura do Token JWT no Header da requisição
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/token")
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-# --- CONFIGURAÇÕES DE SEGURANÇA (Injetadas em produção via Variáveis de Ambiente) ---
-# Em produção, esses valores serão lidos estritamente do arquivo core/config.py
-JWT_SECRET = "MUDAR_PARA_UMA_CHAVE_ULTRA_SECRETA_E_LONGA_EM_PRODUCAO"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = (
-    15  # Token de curta duração reduz o risco de roubo de sessão
-)
 
-
-# --- MODELOS DE DADOS PARA VALIDAÇÃO RÍGIDA ---
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -33,43 +22,62 @@ class TokenData(BaseModel):
     email: str | None = None
 
 
-# --- FUNÇÕES INTERNAS DE SEGURANÇA ---
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica se a senha enviada bate com o hash seguro salvo no banco."""
-    return pwd_context.verify(plain_password, hashed_password)
+    return bool(pwd_context.verify(plain_password, hashed_password))
 
 
 def get_password_hash(password: str) -> str:
-    """Gera o hash Bcrypt da senha antes de salvar qualquer registro."""
-    return pwd_context.hash(password)
+    return str(pwd_context.hash(password))
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
-    """Gera um token JWT blindado com expiração estrita e carimbo de data (UTC)."""
-    to_encode = data.copy()
+def create_access_token(
+    data: dict[str, Any], expires_delta: timedelta | None = None
+) -> str:
+    to_encode: dict[str, Any] = data.copy()
+
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(
-            minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
 
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=ALGORITHM)
-    return encoded_jwt
+    to_encode.update({"exp": expire, "iss": "yt-downloader-backend"})
+
+    if settings.JWT_SECRET_KEY is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Configuração do servidor corrompida.",
+        )
+
+    secret_key = settings.JWT_SECRET_KEY.get_secret_value()
+    encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=settings.JWT_ALGORITHM)
+    return str(encoded_jwt)
 
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
-    """Middleware de Injeção de Dependência para proteger rotas confidenciais."""
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> TokenData:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Não foi possível validar as credenciais de acesso.",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    if settings.JWT_SECRET_KEY is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Configuração do servidor corrompida.",
+        )
+
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
+        secret_key = settings.JWT_SECRET_KEY.get_secret_value()
+        payload: dict[str, Any] = jwt.decode(
+            token,
+            secret_key,
+            algorithms=[settings.JWT_ALGORITHM],
+            issuer="yt-downloader-backend",
+        )
+        email: Any = payload.get("sub")
+        if not isinstance(email, str):
             raise credentials_exception
         token_data = TokenData(email=email)
     except JWTError:
@@ -78,18 +86,12 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     return token_data
 
 
-# --- ROTAS DA API (ENDPOINTS) ---
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-):
-    """Rota de login que valida as credenciais e emite o token de acesso temporário."""
-    # OBSERVAÇÃO: Em produção, a validação abaixo buscará os dados criptografados do banco de dados
-    # Simulando um usuário cadastrado para fins de Scaffold inicial seguro
+) -> dict[str, str]:
     user_placeholder_email = "cliente@exemplo.com"
-    user_placeholder_hash = get_password_hash(
-        "SenhaSuperSegura123"
-    )  # Exemplo de hash salvo
+    user_placeholder_hash = get_password_hash("SenhaSuperSegura123")
 
     if form_data.username != user_placeholder_email or not verify_password(
         form_data.password, user_placeholder_hash
@@ -100,7 +102,7 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": form_data.username}, expires_delta=access_token_expires
     )
