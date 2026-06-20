@@ -56,6 +56,13 @@ main {
     box-sizing: border-box;
 }
 
+.card img {
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 12px;
+}
+
 .glow-effect {
     position: absolute;
     top: -2px; left: -2px; right: -2px; bottom: -2px;
@@ -104,14 +111,15 @@ button, .btn {
     cursor: pointer;
     box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
     transition: all 0.2s ease;
+    box-sizing: border-box;
 }
 
-button:hover {
+button:hover, .btn:hover {
     box-shadow: 0 0 25px rgba(16, 185, 129, 0.5);
     transform: translateY(-1px);
 }
 
-button:active {
+button:active, .btn:active {
     transform: scale(0.98);
 }
 
