@@ -15,15 +15,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        if "/payments" in request.url.path:
+        if (
+            request.url.path.startswith("/api/v1/payments")
+            or "/payments" in request.url.path
+        ):
             return await call_next(request)
 
-        raw_ip = request.headers.get(
-            "x-forwarded-for", request.client.host if request.client else "127.0.0.1"
-        )
+        try:
+            client_host = request.client.host if request.client else "127.0.0.1"
+            raw_ip = request.headers.get("x-forwarded-for", client_host)
+            client_ip = str(raw_ip).split(",")[0].strip()
+        except Exception:
+            client_ip = "127.0.0.1"
 
-        # Correção da Sintaxe: Limpa o texto ANTES de quebrar por vírgulas, pegando o primeiro elemento
-        client_ip = str(raw_ip).strip().split(",")[0].strip()
         current_time = time.time()
 
         if client_ip not in CLIENT_REQUESTS:
