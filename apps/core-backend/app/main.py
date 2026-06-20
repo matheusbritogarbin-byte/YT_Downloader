@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import api_router
-from app.middleware import RateLimitMiddleware
 from app.core import settings
 
 app = FastAPI(
@@ -10,8 +9,6 @@ app = FastAPI(
     docs_url="/api/docs" if settings.ENVIRONMENT != "production" else None,
     redoc_url=None,
 )
-
-app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
 
 app.add_middleware(
     CORSMiddleware,
