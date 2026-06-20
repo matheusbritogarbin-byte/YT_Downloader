@@ -4,7 +4,6 @@ from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 import yt_dlp
-from app.api.auth import get_current_user, TokenData
 from app.middleware.rate_limiter import verificar_limite_requisicoes
 
 router = APIRouter(prefix="/download", tags=["Media Downloader"])
@@ -112,9 +111,7 @@ async def processar_item_async(
     dependencies=[Depends(verificar_limite_requisicoes)],
 )
 async def process_youtube_video(
-    request: BatchDownloadRequest,
-    fastapi_request: Request,
-    current_user: TokenData | None = Depends(get_current_user),
+    request: BatchDownloadRequest, fastapi_request: Request
 ) -> BatchDownloadResponse:
     if not request.items:
         raise HTTPException(
@@ -126,13 +123,12 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        client_ip = str(raw_ip).split(",")[0].strip()
+        ip_str = str(raw_ip).split(",")
+        client_ip = ip_str[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
-    is_premium = client_ip in ADMIN_IPS or (
-        current_user is not None and current_user.email is not None
-    )
+    is_premium = client_ip in ADMIN_IPS
 
     if not is_premium and len(request.items) > 1:
         raise HTTPException(

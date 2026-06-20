@@ -12,7 +12,8 @@ async def verificar_limite_requisicoes(request: Request) -> None:
     try:
         client_host = request.client.host if request.client else "127.0.0.1"
         raw_ip = request.headers.get("x-forwarded-for", client_host)
-        client_ip = str(raw_ip).split(",")[0].strip()
+        ip_str = str(raw_ip).split(",")
+        client_ip = ip_str[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
