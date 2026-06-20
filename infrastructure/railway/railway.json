@@ -1,0 +1,19 @@
+{
+  "$schema": "https://railway.app",
+  "settings": {
+    "environmentId": "production",
+    "automaticDeployments": true
+  },
+  "services": {
+    "core-backend": {
+      "source": {
+        "root": "apps/core-backend"
+      }
+    },
+    "web-frontend": {
+      "source": {
+        "root": "apps/web-frontend"
+      }
+    }
+  }
+}

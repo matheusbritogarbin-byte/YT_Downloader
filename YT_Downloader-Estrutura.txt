@@ -1,0 +1,8 @@
+YT_Downloader/
+│
+├── infrastructure/               # Arquivos de infraestrutura como código (IaC)
+│   └── railway/                  # Configurações de deploy seguro do Railway
+│
+├── .gitignore                    # Garante que chaves_producao.txt e .venv fiquem fora do Git
+├── LICENSE
+└── README.md                     # Documentação de arquitetura e setup
