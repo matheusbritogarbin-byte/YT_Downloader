@@ -1,17 +1,12 @@
-import os
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, status
 import stripe
 from app.api.auth import get_current_user
+from app.core import settings  # Importa o arquivo central de variáveis
 
 router = APIRouter(prefix="/payments", tags=["Billing & Payments"])
 
-# --- CONFIGURAÇÕES DO GATEWAY ---
-# Em produção, estas chaves devem ser injetadas estritamente do core/config.py
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "sk_test_placeholder")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
-
-stripe.api_key = STRIPE_SECRET_KEY
+# Configura o Stripe extraindo o valor limpo de dentro do SecretStr
+stripe.api_key = settings.STRIPE_SECRET_KEY.get_secret_value()
 
 # ID do preço recorrente mensal de R$ 4,99 criado no painel do Stripe
 SUBSCRIPTION_PRICE_ID = "price_placeholder_id"
@@ -71,7 +66,7 @@ async def stripe_webhook(request: Request, stripe_signature: str = Header(None))
 
         # Constrói o evento garantindo que ele realmente veio da Stripe e não foi alterado
         event = stripe.Webhook.construct_event(
-            payload, stripe_signature, STRIPE_WEBHOOK_SECRET
+            payload, stripe_signature, settings.STRIPE_WEBHOOK_SECRET.get_secret_value()
         )
     except ValueError:
         raise HTTPException(
