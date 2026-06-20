@@ -53,6 +53,7 @@ async def create_checkout_session(
 
 
 @router.post("/webhook")
+@router.post("/webhook/")
 async def stripe_webhook(
     request: Request, stripe_signature: str = Header(None)
 ) -> dict[str, str]:
