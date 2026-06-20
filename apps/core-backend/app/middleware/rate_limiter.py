@@ -23,8 +23,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         try:
             client_host = request.client.host if request.client else "127.0.0.1"
             raw_ip = request.headers.get("x-forwarded-for", client_host)
-
-            # Correção Cirúrgica: Extrai o primeiro elemento da lista antes de aplicar o .strip()
             ip_list = str(raw_ip).split(",")
             client_ip = ip_list[0].strip()
         except Exception:
