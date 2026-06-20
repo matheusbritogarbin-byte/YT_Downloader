@@ -1,4 +1,5 @@
 import asyncio
+import os
 import re
 from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -51,17 +52,29 @@ def extrair_midia_com_seguranca(
         else:
             format_opt = "worstaudio/worst"
 
+    cookie_path = "/tmp/youtube_cookies.txt"
+    cookies_content = os.getenv("YOUTUBE_COOKIES_DATA", "")
+
+    if cookies_content:
+        try:
+            with open(cookie_path, "w", encoding="utf-8") as f:
+                f.write(cookies_content)
+        except Exception:
+            pass
+
     ydl_opts: dict[str, Any] = {
         "format": format_opt,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
-        "username": "oauth2",
-        "password": "",
+        "allowed_extractors": ["youtube"],
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
     }
+
+    if os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 0:
+        ydl_opts["cookiefile"] = cookie_path
 
     try:
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
@@ -122,8 +135,9 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        ip_list = str(raw_ip).split(",")
-        client_ip = str(ip_list).strip()
+
+        # Correção da sintaxe do IP usando o índice [0] de forma correta antes do strip
+        client_ip = str(raw_ip).split(",")[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
