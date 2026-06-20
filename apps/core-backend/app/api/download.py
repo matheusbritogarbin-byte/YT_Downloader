@@ -1,31 +1,61 @@
+import asyncio
 import re
 from typing import Any, cast
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 import yt_dlp
 from app.api.auth import get_current_user, TokenData
+from app.middleware.rate_limiter import verificar_limite_requisicoes
 
 router = APIRouter(prefix="/download", tags=["Media Downloader"])
 
 YOUTUBE_REGEX = re.compile(
-    r"^(https?://)?(www\.)?(youtube\.com/watch\?v=|youtu\.be/)[a-zA-Z0-9_-]{11}"
+    r"^(https?://)?(www\.)?(youtube\.com/watch\?v=|youtu\.be/)[a-zA-Z0-9_-]{11}(\?.*|&.*)?$"
 )
 
+ADMIN_IPS = ["127.0.0.1"]
 
-class DownloadRequest(BaseModel):
+
+class DownloadItemRequest(BaseModel):
     url: str
+    quality_profile: str
 
 
-class DownloadResponse(BaseModel):
+class BatchDownloadRequest(BaseModel):
+    items: list[DownloadItemRequest]
+
+
+class DownloadResponseItem(BaseModel):
+    url: str
     title: str
     download_url: str
     duration: int
     thumbnail: str
+    status: str
+    error_message: str | None = None
 
 
-def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
+class BatchDownloadResponse(BaseModel):
+    results: list[DownloadResponseItem]
+
+
+def extrair_midia_com_seguranca(
+    url: str, quality_profile: str, is_premium: bool
+) -> dict[str, Any]:
+    if not is_premium:
+        format_opt = "worstaudio/worst"
+    else:
+        if quality_profile == "mp4_1080p":
+            format_opt = "bestvideo[height<=1080]+bestaudio/best"
+        elif quality_profile == "mp4_720p":
+            format_opt = "bestvideo[height<=720]+bestaudio/best"
+        elif quality_profile == "mp3_320k":
+            format_opt = "bestaudio/best"
+        else:
+            format_opt = "worstaudio/worst"
+
     ydl_opts: dict[str, Any] = {
-        "format": "bestvideo+bestaudio/best",
+        "format": format_opt,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
@@ -47,36 +77,90 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
                 "download_url": str(download_url) if download_url is not None else "",
                 "duration": int(duration) if isinstance(duration, (int, float)) else 0,
                 "thumbnail": str(thumbnail) if thumbnail is not None else "",
+                "status": "success",
+                "error_message": None,
             }
     except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Não foi possível processar este vídeo. Verifique se o link é público.",
-        )
+        return {
+            "title": "Erro",
+            "download_url": "",
+            "duration": 0,
+            "thumbnail": "",
+            "status": "failed",
+            "error_message": "Não foi possível processar este link.",
+        }
 
 
-@router.post("/processar", response_model=DownloadResponse)
+async def processar_item_async(
+    item: DownloadItemRequest, is_premium: bool
+) -> dict[str, Any]:
+    loop = asyncio.get_running_loop()
+    profile = str(item.quality_profile)
+    res = await loop.run_in_executor(
+        None, extrair_midia_com_seguranca, str(item.url), profile, is_premium
+    )
+    res["url"] = item.url
+    return res
+
+
+@router.post(
+    "/processar",
+    response_model=BatchDownloadResponse,
+    dependencies=[Depends(verificar_limite_requisicoes)],
+)
 async def process_youtube_video(
-    request: DownloadRequest, current_user: TokenData = Depends(get_current_user)
-) -> DownloadResponse:
-    url_limpa = request.url.strip()
-    if not YOUTUBE_REGEX.match(url_limpa):
+    request: BatchDownloadRequest,
+    fastapi_request: Request,
+    current_user: TokenData = Depends(get_current_user),
+) -> BatchDownloadResponse:
+    if not request.items:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="URL do YouTube inválida ou em formato não permitido por motivos de segurança.",
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhum item enviado."
         )
 
-    if current_user.email is None:
+    try:
+        client_host = (
+            fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
+        )
+        raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
+        ip_list = str(raw_ip).split(",")
+        client_ip = str(ip_list[0]).strip()
+    except Exception:
+        client_ip = "127.0.0.1"
+
+    is_premium = client_ip in ADMIN_IPS or current_user.email is not None
+
+    if not is_premium and len(request.items) > 1:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso negado. Esta funcionalidade exige uma assinatura ativa.",
+            detail="Downloads simultâneos são exclusivos do Plano Premium.",
         )
 
-    resultado = extrair_midia_com_seguranca(url_limpa)
+    for item in request.items:
+        if not YOUTUBE_REGEX.match(item.url.strip()):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"URL inválida ou não suportada: {item.url}",
+            )
 
-    return DownloadResponse(
-        title=str(resultado["title"]),
-        download_url=str(resultado["download_url"]),
-        duration=int(resultado["duration"]),
-        thumbnail=str(resultado["thumbnail"]),
-    )
+    tasks = [processar_item_async(item, is_premium) for item in request.items]
+    raw_results = await asyncio.gather(*tasks)
+
+    results_list = [
+        DownloadResponseItem(
+            url=str(r.get("url", "")),
+            title=str(r.get("title", "Vídeo Sem Título")),
+            download_url=str(r.get("download_url", "")),
+            duration=int(r.get("duration", 0)),
+            thumbnail=str(r.get("thumbnail", "")),
+            status=str(r.get("status", "failed")),
+            error_message=(
+                r.get("error_message")
+                if r.get("error_message") is None
+                else str(r.get("error_message"))
+            ),
+        )
+        for r in raw_results
+    ]
+
+    return BatchDownloadResponse(results=results_list)
