@@ -15,7 +15,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        # Se a requisição for para o Webhook do Stripe, deixa passar direto sem interceptar os bytes
         if "/payments" in request.url.path:
             return await call_next(request)
 
