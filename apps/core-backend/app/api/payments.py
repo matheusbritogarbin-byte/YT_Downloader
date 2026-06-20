@@ -1,7 +1,7 @@
 from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, status
 import stripe
-from app.api.auth import get_current_user, TokenData
+from app.api.auth import get_current_user
 from app.core import settings
 
 router = APIRouter(prefix="/payments", tags=["Billing & Payments"])
@@ -14,13 +14,12 @@ stripe.api_key = settings.STRIPE_SECRET_KEY.get_secret_value()
 
 @router.post("/checkout/create-session")
 async def create_checkout_session(
-    current_user: TokenData = Depends(get_current_user),
+    request: Request, current_user: Any = Depends(get_current_user)
 ) -> dict[str, str]:
-    if current_user.email is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuário inválido para checkout.",
-        )
+    user_email = "cliente_anonimo@teste.com"
+
+    if current_user and hasattr(current_user, "email") and current_user.email:
+        user_email = current_user.email
 
     if settings.STRIPE_PRICE_ID_PREMIUM is None:
         raise HTTPException(
@@ -40,8 +39,8 @@ async def create_checkout_session(
             ],
             success_url=f"{settings.FRONTEND_URL}/success.html?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{settings.FRONTEND_URL}/cancel.html",
-            customer_email=current_user.email,
-            metadata={"user_email": current_user.email},
+            customer_email=user_email,
+            metadata={"user_email": user_email},
         )
         return {"checkout_url": str(session.url)}
 

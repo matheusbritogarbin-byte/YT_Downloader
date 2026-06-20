@@ -1,7 +1,7 @@
 import asyncio
 import os
 import re
-from typing import Any, cast
+from typing import Any, cast, AsyncIterator
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
@@ -134,7 +134,8 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        client_ip = str(raw_ip).split(",")[0].strip()
+        ip_list = str(raw_ip).split(",")
+        client_ip = ip_list[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -143,13 +144,11 @@ async def process_youtube_video(
     tasks = [processar_item_async(item, is_premium) for item in request.items]
     raw_results = await asyncio.gather(*tasks)
 
-    # Converte os links brutos do Google para passar pela nossa nova rota de túnel de proxy
-    results_list = []
+    results_list: list[DownloadResponseItem] = []
     for r in raw_results:
         orig_url = str(r.get("download_url", ""))
         title_limpo = str(r.get("title", "arquivo")).replace(" ", "_")
 
-        # O link do botão agora vai apontar para o nosso próprio backend transmitir os bytes
         proxy_download_url = f"https://railway.app{orig_url}&title={title_limpo}"
 
         results_list.append(
@@ -176,7 +175,7 @@ async def stream_youtube_bytes(url: str, title: str) -> StreamingResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
-    async def generate_bytes():
+    async def generate_bytes() -> AsyncIterator[bytes]:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
@@ -185,7 +184,7 @@ async def stream_youtube_bytes(url: str, title: str) -> StreamingResponse:
                 if response.status_code != 200:
                     yield b"Erro ao transmitir arquivo"
                     return
-                async for chunk in response.iter_bytes(chunk_size=1024 * 64):
+                async for chunk in response.aiter_bytes(chunk_size=1024 * 64):
                     yield chunk
 
     filename = f"{title}.mp3"
