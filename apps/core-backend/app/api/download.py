@@ -10,7 +10,7 @@ router = APIRouter(prefix="/download", tags=["Media Downloader"])
 
 YOUTUBE_REGEX = re.compile(r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$")
 
-ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3"]
+ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3", "100.64.0.4"]
 
 
 class DownloadItemRequest(BaseModel):
@@ -57,10 +57,9 @@ def extrair_midia_com_seguranca(
         "no_warnings": True,
         "restrictfilenames": True,
         "allowed_extractors": ["youtube"],
+        "client": "tv",
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
         },
     }
 
@@ -123,8 +122,7 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        ip_str = str(raw_ip).split(",")
-        client_ip = ip_str[0].strip()
+        client_ip = str(raw_ip).split(",")[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
