@@ -1,7 +1,6 @@
 from typing import Any, cast
-from fastapi import APIRouter, Depends, HTTPException, Request, Header, status
+from fastapi import APIRouter, HTTPException, Request, Header, status
 import stripe
-from app.api.auth import get_current_user
 from app.core import settings
 
 router = APIRouter(prefix="/payments", tags=["Billing & Payments"])
@@ -13,13 +12,8 @@ stripe.api_key = settings.STRIPE_SECRET_KEY.get_secret_value()
 
 
 @router.post("/checkout/create-session")
-async def create_checkout_session(
-    request: Request, current_user: Any = Depends(get_current_user)
-) -> dict[str, str]:
+async def create_checkout_session(request: Request) -> dict[str, str]:
     user_email = "cliente_anonimo@teste.com"
-
-    if current_user and hasattr(current_user, "email") and current_user.email:
-        user_email = current_user.email
 
     if settings.STRIPE_PRICE_ID_PREMIUM is None:
         raise HTTPException(
