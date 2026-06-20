@@ -4,7 +4,7 @@
 .env
 .env.local
 .env.*.local
-.API_Keys.txt
+API_Keys.txt
 *.pem
 *.key
 
