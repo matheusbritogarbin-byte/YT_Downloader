@@ -87,12 +87,14 @@ async def stripe_webhook(
     event_type = str(event.type)
 
     if event_type == "checkout.session.completed":
-        session = event.data.object
-        metadata = dict(getattr(session, "metadata", {}))
+        session_obj = event.data.object
+        session = cast(dict[str, Any], session_obj.to_dict())
+
+        metadata = cast(dict[str, Any], session.get("metadata", {}))
         user_email = metadata.get("user_email")
 
         if not user_email:
-            customer_details = dict(getattr(session, "customer_details", {}))
+            customer_details = cast(dict[str, Any], session.get("customer_details", {}))
             user_email = (
                 customer_details.get("email")
                 if customer_details
