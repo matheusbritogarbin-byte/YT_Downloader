@@ -38,10 +38,12 @@ async def create_checkout_session(request: Request) -> dict[str, str]:
         )
         return {"checkout_url": str(session.url)}
 
-    except Exception:
+    except Exception as e:
+        # Exibe o erro real vindo do Stripe diretamente nos logs do Railway
+        print(f"❌ ERRO CRÍTICO NO STRIPE CHECKOUT: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro ao inicializar o gateway de pagamentos seguro.",
+            detail=str(e),
         )
 
 
