@@ -69,7 +69,8 @@ async def stripe_webhook(
         )
 
     try:
-        payload = await request.body()
+        payload_bytes = await request.body()
+        payload = payload_bytes.decode("utf-8")
         webhook_helper = cast(Any, stripe.Webhook)
         event = webhook_helper.construct_event(
             payload, stripe_signature, settings.STRIPE_WEBHOOK_SECRET.get_secret_value()
