@@ -88,11 +88,11 @@ async def stripe_webhook(
 
     if event_type == "checkout.session.completed":
         session = event.data.object
-        metadata = getattr(session, "metadata", {})
-        user_email = metadata.get("user_email") if metadata else None
+        metadata = dict(getattr(session, "metadata", {}))
+        user_email = metadata.get("user_email")
 
         if not user_email:
-            customer_details = getattr(session, "customer_details", None)
+            customer_details = dict(getattr(session, "customer_details", {}))
             user_email = (
                 customer_details.get("email")
                 if customer_details
