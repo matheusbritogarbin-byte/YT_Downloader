@@ -41,7 +41,7 @@ def extrair_midia_com_seguranca(
     url: str, quality_profile: str, is_premium: bool
 ) -> dict[str, Any]:
     if not is_premium:
-        format_opt = "worstaudio/worst"
+        format_opt = "bestaudio/best"
     else:
         if quality_profile == "mp4_1080p":
             format_opt = "bestvideo[height<=1080]+bestaudio/best"
@@ -50,7 +50,7 @@ def extrair_midia_com_seguranca(
         elif quality_profile == "mp3_320k":
             format_opt = "bestaudio/best"
         else:
-            format_opt = "worstaudio/worst"
+            format_opt = "bestaudio/best"
 
     cookie_path = "/tmp/youtube_cookies.txt"
     cookies_content = os.getenv("YOUTUBE_COOKIES_DATA", "")
@@ -135,9 +135,8 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-
-        # Correção da sintaxe do IP usando o índice [0] de forma correta antes do strip
-        client_ip = str(raw_ip).split(",")[0].strip()
+        ip_list = str(raw_ip).split(",")
+        client_ip = ip_list[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
