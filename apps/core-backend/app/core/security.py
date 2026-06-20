@@ -1,8 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
-from pwd_context import (
-    CryptContext,
-)  # Biblioteca que gerencia hashing sob padrões rígidos
+from passlib.context import CryptContext
 from app.core.config import settings
 
 # Configuração de Hashing de Senhas usando Argon2id (Recomendação OWASP / PCI-DSS)
