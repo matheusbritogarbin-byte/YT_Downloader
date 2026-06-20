@@ -1,29 +1,32 @@
 import time
-from typing import Any, Awaitable, Callable
-from fastapi import Request, HTTPException, status
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 CLIENT_REQUESTS: dict[str, list[float]] = {}
 
 
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: Any, requests_per_minute: int = 60) -> None:
-        super().__init__(app)
+class RateLimitMiddleware:
+    def __init__(self, app: ASGIApp, requests_per_minute: int = 60) -> None:
+        self.app = app
         self.requests_per_minute = requests_per_minute
 
-    async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        if "/payments" in request.url.path:
-            return await call_next(request)
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
 
-        try:
-            client_host = request.client.host if request.client else "127.0.0.1"
-            raw_ip = request.headers.get("x-forwarded-for", client_host)
-            client_ip = str(raw_ip).split(",")[0].strip()
-        except Exception:
-            client_ip = "127.0.0.1"
+        path = scope.get("path", "")
+        if "/payments" in path:
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers", []))
+        raw_forwarded = headers.get(b"x-forwarded-for", b"")
+
+        if raw_forwarded:
+            client_ip = raw_forwarded.decode("utf-8").split(",")[0].strip()
+        else:
+            client_tuple = scope.get("client")
+            client_ip = client_tuple[0] if client_tuple else "127.0.0.1"
 
         current_time = time.time()
 
@@ -31,16 +34,28 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             CLIENT_REQUESTS[client_ip] = []
 
         CLIENT_REQUESTS[client_ip] = [
-            timestamp
-            for timestamp in CLIENT_REQUESTS[client_ip]
-            if current_time - timestamp < 60
+            t for t in CLIENT_REQUESTS[client_ip] if current_time - t < 60
         ]
 
         if len(CLIENT_REQUESTS[client_ip]) >= self.requests_per_minute:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Limite de requisições excedido. Aguarde 60 segundos.",
+            bytes_payload = (
+                b'{"detail":"Limite de requisicoes excedido. Aguarde 60 segundos."}'
             )
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 429,
+                    "headers": [(b"content-type", b"application/json")],
+                }
+            )
+            await send(
+                {
+                    "type": "http.response.body",
+                    "body": bytes_payload,
+                    "more_body": False,
+                }
+            )
+            return
 
         CLIENT_REQUESTS[client_ip].append(current_time)
-        return await call_next(request)
+        await self.app(scope, receive, send)
