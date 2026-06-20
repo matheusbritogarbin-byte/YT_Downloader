@@ -37,21 +37,7 @@ class BatchDownloadResponse(BaseModel):
     results: list[DownloadResponseItem]
 
 
-def extrair_midia_com_seguranca(
-    url: str, quality_profile: str, is_premium: bool
-) -> dict[str, Any]:
-    if not is_premium:
-        format_opt = "best/bestaudio"
-    else:
-        if quality_profile == "mp4_1080p":
-            format_opt = "bestvideo[height<=1080]+bestaudio/best"
-        elif quality_profile == "mp4_720p":
-            format_opt = "bestvideo[height<=720]+bestaudio/best"
-        elif quality_profile == "mp3_320k":
-            format_opt = "best/bestaudio"
-        else:
-            format_opt = "best/bestaudio"
-
+def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
     cookie_path = "/tmp/youtube_cookies.txt"
     cookies_content = os.getenv("YOUTUBE_COOKIES_DATA", "")
 
@@ -62,8 +48,8 @@ def extrair_midia_com_seguranca(
         except Exception:
             pass
 
+    # Removido o filtro de formato estrito para evitar o erro de formato indisponível
     ydl_opts: dict[str, Any] = {
-        "format": format_opt,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
@@ -105,14 +91,9 @@ def extrair_midia_com_seguranca(
         }
 
 
-async def processar_item_async(
-    item: DownloadItemRequest, is_premium: bool
-) -> dict[str, Any]:
+async def processar_item_async(item: DownloadItemRequest) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
-    profile = str(item.quality_profile)
-    res = await loop.run_in_executor(
-        None, extrair_midia_com_seguranca, str(item.url), profile, is_premium
-    )
+    res = await loop.run_in_executor(None, extrair_midia_com_seguranca, str(item.url))
     res["url"] = item.url
     return res
 
@@ -136,7 +117,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_list = str(raw_ip).split(",")
-        client_ip = ip_list[0].strip()
+        client_ip = ip_list.strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -155,7 +136,7 @@ async def process_youtube_video(
                 detail=f"URL inválida ou não suportada: {item.url}",
             )
 
-    tasks = [processar_item_async(item, is_premium) for item in request.items]
+    tasks = [processar_item_async(item) for item in request.items]
     raw_results = await asyncio.gather(*tasks)
 
     results_list = [
