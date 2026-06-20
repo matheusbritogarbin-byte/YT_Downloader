@@ -11,7 +11,7 @@ router = APIRouter(prefix="/download", tags=["Media Downloader"])
 
 YOUTUBE_REGEX = re.compile(r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$")
 
-ADMIN_IPS = ["127.0.0.1"]
+ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3"]
 
 
 class DownloadItemRequest(BaseModel):
@@ -90,7 +90,7 @@ def extrair_midia_com_seguranca(
             "duration": 0,
             "thumbnail": "",
             "status": "failed",
-            "error_message": f"Falha na extração: {str(e)}",
+            "error_message": str(e),
         }
 
 
@@ -114,7 +114,7 @@ async def processar_item_async(
 async def process_youtube_video(
     request: BatchDownloadRequest,
     fastapi_request: Request,
-    current_user: TokenData = Depends(get_current_user),
+    current_user: TokenData | None = Depends(get_current_user),
 ) -> BatchDownloadResponse:
     if not request.items:
         raise HTTPException(
@@ -126,12 +126,13 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        ip_list = str(raw_ip).split(",")
-        client_ip = str(ip_list[0]).strip()
+        client_ip = str(raw_ip).split(",")[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
-    is_premium = client_ip in ADMIN_IPS or current_user.email is not None
+    is_premium = client_ip in ADMIN_IPS or (
+        current_user is not None and current_user.email is not None
+    )
 
     if not is_premium and len(request.items) > 1:
         raise HTTPException(
