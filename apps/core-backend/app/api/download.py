@@ -9,9 +9,7 @@ from app.middleware.rate_limiter import verificar_limite_requisicoes
 
 router = APIRouter(prefix="/download", tags=["Media Downloader"])
 
-YOUTUBE_REGEX = re.compile(
-    r"^(https?://)?(www\.)?(youtube\.com/watch\?v=|youtu\.be/)[a-zA-Z0-9_-]{11}(\?.*|&.*)?$"
-)
+YOUTUBE_REGEX = re.compile(r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$")
 
 ADMIN_IPS = ["127.0.0.1"]
 
@@ -60,6 +58,11 @@ def extrair_midia_com_seguranca(
         "no_warnings": True,
         "restrictfilenames": True,
         "allowed_extractors": ["youtube"],
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        },
     }
 
     try:
@@ -80,14 +83,14 @@ def extrair_midia_com_seguranca(
                 "status": "success",
                 "error_message": None,
             }
-    except Exception:
+    except Exception as e:
         return {
             "title": "Erro",
             "download_url": "",
             "duration": 0,
             "thumbnail": "",
             "status": "failed",
-            "error_message": "Não foi possível processar este link.",
+            "error_message": f"Falha na extração: {str(e)}",
         }
 
 
@@ -155,9 +158,7 @@ async def process_youtube_video(
             thumbnail=str(r.get("thumbnail", "")),
             status=str(r.get("status", "failed")),
             error_message=(
-                r.get("error_message")
-                if r.get("error_message") is None
-                else str(r.get("error_message"))
+                None if r.get("error_message") is None else str(r.get("error_message"))
             ),
         )
         for r in raw_results

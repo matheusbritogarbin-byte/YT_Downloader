@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acesso Liberado - YT Downloader</title>
+    <link rel="stylesheet" href="success.css">
+</head>
+<body oncontextmenu="return false;">
+
+    <div class="wrapper">
+        <div class="navbar"></div>
+
+        <main>
+            <div class="card">
+                <div class="glow-effect"></div>
+                
+                <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #10b981 0%, #047857 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px auto; box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);">
+                    <svg fill="none" stroke="#ffffff" viewBox="0 0 24 24" style="width: 26px; height: 26px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+
+                <h1>ACESSO <span>ATIVADO</span></h1>
+                <p>Sua assinatura premium foi processada e homologada com sucesso.</p>
+
+                <div class="price-tag" style="border-color: rgba(16, 185, 129, 0.2); margin-bottom: 32px;">
+                    <div>
+                        <span style="font-size: 10px; color: #10b981; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px;">CONTA ATIVA</span>
+                        <div style="font-size: 15px; font-weight: 800; color: #ffffff;">Plano Premium Ilimitado</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 20px; font-weight: 900; color: #10b981;">LIBERADO</div>
+                    </div>
+                </div>
+
+                <button onclick="liberarEGoBack();">
+                    INICIAR DOWNLOADS
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 YT Downloader.</p>
+    </footer>
+
+    <script>
+        document.addEventListener("keydown", function(e) {
+            if (e.key === "F12") { e.preventDefault(); return false; }
+            if (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J" || e.key === "C")) { e.preventDefault(); return false; }
+            if (e.ctrlKey && (e.key === "u" || e.key === "U")) { e.preventDefault(); return false; }
+        });
+
+        function liberarEGoBack() {
+            localStorage.setItem('dl_count', '-999999');
+            window.location.href = 'index.html';
+        }
+
+        window.addEventListener('DOMContentLoaded', function() {
+            localStorage.setItem('dl_count', '-999999');
+        });
+    </script>
+</body>
+</html>

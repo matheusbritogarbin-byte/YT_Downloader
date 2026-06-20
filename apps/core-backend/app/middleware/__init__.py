@@ -1,4 +1,3 @@
-from app.middleware.rate_limiter import RateLimitMiddleware
+from app.middleware.rate_limiter import verificar_limite_requisicoes
 
-# Exporta o middleware de barreira anti-DDoS e controle de tráfego
-__all__ = ["RateLimitMiddleware"]
+__all__ = ["verificar_limite_requisicoes"]

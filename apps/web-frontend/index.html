@@ -3,115 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YT Downloader - Premium</title>
-    <script src="https://jsdelivr.net"></script>
+    <title>YT Downloader - Free Studio</title>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-slate-950 text-slate-100 flex flex-col justify-between min-h-screen font-sans antialiased selection:bg-red-500/30 selection:text-red-200">
+<body oncontextmenu="return false;">
 
-    <header class="w-full max-w-md mx-auto px-4 pt-6 flex justify-end">
-        <button onclick="openPremiumModal('upgrade')" class="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-bold uppercase tracking-wider rounded-xl shadow-md transition-all duration-150 cursor-pointer active:scale-95">
-            Upgrade Premium
-        </button>
-    </header>
+    <div class="wrapper">
+        <div class="navbar">
+            <button onclick="openPremiumModal('upgrade')" class="btn btn-premium animate-pulse">
+                Upgrade Premium
+            </button>
+        </div>
 
-    <main class="flex-grow flex items-center justify-center p-4">
-        <div class="max-w-md w-full p-8 bg-slate-900 rounded-2xl shadow-2xl border border-slate-800/80 text-center relative overflow-hidden">
-            <div class="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-40 bg-red-500/10 rounded-full blur-2xl pointer-events-none"></div>
+        <main>
+            <div class="card">
+                <div class="glow-effect"></div>
+                <h1>YT <span>Downloader</span></h1>
+                <p>Download gratuito de áudio mp3 na qualidade padrão do servidor.</p>
 
-            <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500 mb-2 tracking-tight">
-                YT Downloader
-            </h1>
-            <p class="text-slate-400 mb-8 text-sm font-medium">Download de vídeos em alta velocidade e segurança máxima.</p>
-
-            <form id="downloadForm" class="space-y-4">
-                <div class="relative">
+                <form id="downloadForm" class="input-group">
                     <input 
                         type="url" 
                         id="videoUrl"
                         placeholder="Cole o link do YouTube aqui..." 
                         required
-                        class="w-full px-4 py-3.5 bg-slate-950 rounded-xl border border-slate-800 focus:border-red-500/50 focus:ring-2 focus:ring-red-500/10 text-slate-200 placeholder-slate-500 text-sm outline-none transition-all duration-200"
+                        autocomplete="off"
                     />
-                </div>
-                
-                <button 
-                    type="submit"
-                    class="w-full py-3.5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 font-semibold rounded-xl shadow-lg shadow-red-950/20 active:scale-[0.98] transition-all duration-150 cursor-pointer"
-                >
-                    Processar Vídeo
-                </button>
-            </form>
+                    <button type="submit">
+                        DOWNLOAD
+                    </button>
+                </form>
 
-            <div id="statusAlert" class="mt-4 hidden p-3 rounded-xl border text-xs font-semibold text-center"></div>
+                <div id="statusAlert" class="status-alert hidden"></div>
+                <div id="resultsContainer" style="margin-top: 28px; display: flex; flex-direction: column; gap: 20px;"></div>
 
-            <div class="mt-6 pt-6 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-500">
-                <div class="flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Cota Gratuita: <span id="cotaContador" class="text-slate-300 font-bold">2/2</span></span>
-                </div>
-                <div>
-                    <span>Plano Premium: <strong class="text-amber-500 font-semibold">R$ 4,99/mês</strong></span>
+                <div class="footer-info">
+                    <div>COTA GRATUITA: <span id="cotaContador" style="color: #ef4444; font-weight: 900;">2/2</span></div>
+                    <div>PLANO PREMIUM: <strong style="color: #f59e0b; font-weight: 900;">R$ 4,99</strong></div>
                 </div>
             </div>
-        </div>
-    </main>
+        </main>
+    </div>
 
-    <div id="premiumModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-all duration-200">
-        <div class="max-w-sm w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-2xl text-center transform scale-95 transition-all duration-200">
-            <div class="w-12 h-12 bg-gradient-to-tr from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shadow-lg mx-auto mb-4">
-                <svg class="w-6 h-6 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div id="premiumModal" class="modal-backdrop">
+        <div class="modal">
+            <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);">
+                <svg fill="none" stroke="#ffffff" viewBox="0 0 24 24" style="width: 26px; height: 26px;">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
                 </svg>
             </div>
             
-            <h2 id="modalTitle" class="text-xl font-black text-white tracking-tight mb-2">Limite Diário Atingido!</h2>
-            <p id="modalDescription" class="text-slate-400 text-xs leading-relaxed mb-4">Você atingiu a cota de 2 downloads gratuitos por dia. Remova todos os limites agora.</p>
+            <h2 id="modalTitle" style="font-size: 22px; font-weight: 900; margin: 0 0 8px 0; color: #ffffff;">LIMITE EXCEDIDO!</h2>
+            <p id="modalDescription" style="margin-bottom: 24px; color: #94a3b8; font-size: 13px;">A sua cota diária de 2 downloads gratuitos acabou. Faça o upgrade para baixar vídeos em 1080p e em lote.</p>
             
-            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 mb-4 flex items-center justify-between text-left">
+            <div class="price-tag">
                 <div>
-                    <span class="block text-[10px] text-amber-500 font-bold uppercase tracking-wider">Acesso Total</span>
-                    <span class="text-sm font-bold text-white">Plano Premium</span>
+                    <span style="font-size: 10px; color: #ef4444; font-weight: 900; text-transform: uppercase;">ACESSO TOTAL</span>
+                    <div style="font-size: 15px; font-weight: 800; color: #ffffff;">Plano Premium</div>
                 </div>
-                <div class="text-right">
-                    <span class="block text-xl font-black text-white">R$ 4,99</span>
-                    <span class="block text-[9px] text-slate-500">mensal</span>
+                <div style="text-align: right;">
+                    <div style="font-size: 24px; font-weight: 900; color: #ef4444;">R$ 4,99</div>
+                    <span style="font-size: 10px; color: #64748b;">mensal</span>
                 </div>
             </div>
 
-            <div class="space-y-2">
-                <button onclick="alert('Iniciando integração com Stripe...')" class="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-sm rounded-xl shadow-md transition-all duration-150 cursor-pointer active:scale-95">
-                    Obter Acesso Ilimitado
+            <div class="input-group">
+                <button id="buyPremiumBtn" class="btn" style="background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);">
+                    DESBLOQUEAR AGORA
                 </button>
-                <button onclick="closePremiumModal()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-750 text-slate-400 text-xs font-semibold rounded-xl transition-all duration-150 cursor-pointer">
-                    Voltar ao Painel
+                <button onclick="closePremiumModal()" style="background: #1e293b; color: #94a3b8; width: 100%; padding: 14px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer;">
+                    VOLTAR AO PAINEL
                 </button>
             </div>
         </div>
     </div>
 
-    <footer class="w-full text-center py-4 text-[10px] text-slate-700">
-        <p>&copy; 2026 YT Downloader. Proteção jurídica MIT.</p>
+    <footer>
+        <p>&copy; 2026 YT Downloader.</p>
     </footer>
 
     <script>
         const MAX_DOWNLOADS = 2;
-        
+        const API_BASE_URL = "https://railway.app";
+
+        document.addEventListener("keydown", function(e) {
+            if (e.key === "F12") { e.preventDefault(); return false; }
+            if (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J" || e.key === "C")) { e.preventDefault(); return false; }
+            if (e.ctrlKey && (e.key === "u" || e.key === "U")) { e.preventDefault(); return false; }
+        });
+
         function getStorageData() {
             const today = new Date().toISOString().split('T')[0];
             const storedDate = localStorage.getItem('dl_date');
-            
             if (storedDate !== today) {
                 localStorage.setItem('dl_date', today);
                 localStorage.setItem('dl_count', '0');
                 return { date: today, count: 0 };
             }
-            
-            const count = parseInt(localStorage.getItem('dl_count') || '0', 10);
-            return { date: today, count: count };
+            return { date: today, count: parseInt(localStorage.getItem('dl_count') || '0', 10) };
         }
 
         function updateUI() {
             const data = getStorageData();
+            if (data.count <= -999999) {
+                window.location.href = "premium.html";
+                return;
+            }
             const restantes = Math.max(0, MAX_DOWNLOADS - data.count);
             document.getElementById('cotaContador').innerText = `${restantes}/${MAX_DOWNLOADS}`;
         }
@@ -124,33 +121,22 @@
 
         function openPremiumModal(reason) {
             const modal = document.getElementById('premiumModal');
-            const title = document.getElementById('modalTitle');
-            const desc = document.getElementById('modalDescription');
-            
-            if (reason === 'limit') {
-                title.innerText = 'Limite Diário Atingido!';
-                desc.innerText = 'Você atingiu o teto de 2 extrações gratuitas por dia. Faça o upgrade agora para remover todas as barreiras.';
-            } else {
-                title.innerText = 'Seja Membro Premium';
-                desc.innerText = 'Desbloqueie extrações instantâneas na velocidade máxima, livre de anúncios ou travas diárias.';
-            }
-
-            modal.classList.remove('opacity-0', 'pointer-events-none');
-            modal.firstElementChild.classList.remove('scale-95');
+            modal.classList.add('active');
         }
 
         function closePremiumModal() {
             const modal = document.getElementById('premiumModal');
-            modal.classList.add('opacity-0', 'pointer-events-none');
-            modal.firstElementChild.classList.add('scale-95');
+            modal.classList.remove('active');
         }
 
-        document.getElementById('downloadForm').addEventListener('submit', function(e) {
+        document.getElementById('downloadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const statusAlert = document.getElementById('statusAlert');
-            
-            statusAlert.className = "mt-4 hidden p-3 rounded-xl border text-xs font-semibold text-center";
-            statusAlert.innerText = "";
+            const container = document.getElementById('resultsContainer');
+            const videoUrl = document.getElementById('videoUrl').value.trim();
+
+            statusAlert.className = "status-alert hidden";
+            container.innerHTML = "";
 
             const data = getStorageData();
             if (data.count >= MAX_DOWNLOADS) {
@@ -159,14 +145,58 @@
             }
 
             statusAlert.classList.remove('hidden');
-            statusAlert.classList.add('bg-blue-500/10', 'border-blue-500/20', 'text-blue-400');
-            statusAlert.innerText = "Conectando ao backend corporativo seguro...";
+            statusAlert.className = "status-alert status-blue";
+            statusAlert.innerText = "ESTABELECENDO CONEXÃO PROTEGIDA COM O SERVIDOR...";
 
-            setTimeout(() => {
-                incrementCount();
-                statusAlert.className = "mt-4 p-3 rounded-xl border text-xs font-semibold text-center bg-emerald-500/10 border-emerald-500/20 text-emerald-400";
-                statusAlert.innerText = "Processado! Lógica de download estática simulada com sucesso.";
-            }, 1200);
+            const payloadItems = [{ url: videoUrl, quality_profile: "mp3_128k" }];
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/download/processar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: payloadItems })
+                });
+
+                if (!response.ok) throw new Error();
+                const batchResult = await response.json();
+                
+                statusAlert.className = "status-alert status-green";
+                statusAlert.innerText = "ARQUIVO CONVERTIDO COM SUCESSO!";
+
+                batchResult.results.forEach(result => {
+                    if (result.status === "success") {
+                        const itemCard = document.createElement('div');
+                        itemCard.style = "text-align: left; background: #050508; padding: 20px; border-radius: 16px; border: 2px solid #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.1);";
+                        itemCard.innerHTML = `
+                            <img src="${result.thumbnail}" alt="Thumb" style="width: 100%; height: 160px; object-fit: cover; border-radius: 12px; border: 1px solid rgba(220,38,38,0.3);" />
+                            <h3 style="font-size: 13px; margin: 12px 0; color: #f8fafc; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${result.title}</h3>
+                            <a href="${result.download_url}" target="_blank" class="btn" style="text-decoration: none; display: block; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); font-size: 14px; font-weight: 800;">BAIXAR ARQUIVO AGORA</a>
+                        `;
+                        container.appendChild(itemCard);
+                        incrementCount();
+                    } else {
+                        throw new Error();
+                    }
+                });
+            } catch (error) {
+                statusAlert.className = "status-alert status-red";
+                statusAlert.innerText = "FALHA NO PROCESSAMENTO. VERIFIQUE O LINK.";
+            } finally {
+                document.getElementById('videoUrl').value = "";
+            }
+        });
+
+        document.getElementById('buyPremiumBtn').addEventListener('click', async function() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/payments/checkout/create-session`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                if (result.checkout_url) window.location.href = result.checkout_url;
+            } catch (err) {
+                alert('Erro ao chamar o gateway de pagamento.');
+            }
         });
 
         window.addEventListener('DOMContentLoaded', updateUI);
