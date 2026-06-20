@@ -52,8 +52,8 @@ async def create_checkout_session(
         )
 
 
-@router.post("/webhook")
-@router.post("/webhook/")
+@router.post("/webhook", include_in_schema=True)
+@router.post("/webhook/", include_in_schema=True)
 async def stripe_webhook(
     request: Request, stripe_signature: str = Header(None)
 ) -> dict[str, str]:

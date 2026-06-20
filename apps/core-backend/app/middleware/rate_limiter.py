@@ -15,9 +15,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        if "/payments" in request.url.path or request.url.path.startswith(
-            "/api/v1/payments"
-        ):
+        if "/payments" in request.url.path:
             return await call_next(request)
 
         try:
