@@ -21,7 +21,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         raw_ip = request.headers.get(
             "x-forwarded-for", request.client.host if request.client else "127.0.0.1"
         )
-        client_ip = str(raw_ip).split(",")[0].strip()
+
+        # Correção da Sintaxe: Limpa o texto ANTES de quebrar por vírgulas, pegando o primeiro elemento
+        client_ip = str(raw_ip).strip().split(",")[0].strip()
         current_time = time.time()
 
         if client_ip not in CLIENT_REQUESTS:
