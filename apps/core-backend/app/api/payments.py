@@ -52,8 +52,8 @@ async def create_checkout_session(
         )
 
 
-@router.post("/webhook", include_in_schema=True)
-@router.post("/webhook/", include_in_schema=True)
+@router.post("/webhook")
+@router.post("/webhook/")
 async def stripe_webhook(
     request: Request, stripe_signature: str = Header(None)
 ) -> dict[str, str]:
@@ -70,8 +70,7 @@ async def stripe_webhook(
         )
 
     try:
-        payload_bytes = await request.body()
-        payload = payload_bytes.decode("utf-8")
+        payload = await request.body()
         webhook_helper = cast(Any, stripe.Webhook)
         event = webhook_helper.construct_event(
             payload, stripe_signature, settings.STRIPE_WEBHOOK_SECRET.get_secret_value()
@@ -85,25 +84,21 @@ async def stripe_webhook(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Assinatura inválida."
         )
 
-    event_type = str(event.get("type", ""))
+    event_type = str(event.type)
 
     if event_type == "checkout.session.completed":
-        event_data = event.get("data")
-        if event_data is not None:
-            session = cast(dict[str, Any], event_data.get("object", {}))
-            metadata = cast(dict[str, Any], session.get("metadata", {}))
+        session = event.data.object
+        metadata = getattr(session, "metadata", {})
+        user_email = metadata.get("user_email") if metadata else None
 
-            user_email = metadata.get("user_email")
-            if not user_email:
-                customer_details = cast(
-                    dict[str, Any], session.get("customer_details", {})
-                )
-                user_email = (
-                    customer_details.get("email")
-                    if customer_details
-                    else "email_desconhecido@teste.com"
-                )
+        if not user_email:
+            customer_details = getattr(session, "customer_details", None)
+            user_email = (
+                customer_details.get("email")
+                if customer_details
+                else "email_desconhecido@teste.com"
+            )
 
-            print(f" Ativação Premium com sucesso para: {user_email}")
+        print(f" Ativação Premium com sucesso para: {user_email}")
 
     return {"status": "success"}
