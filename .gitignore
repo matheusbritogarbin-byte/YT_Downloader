@@ -4,7 +4,7 @@
 .env
 .env.local
 .env.*.local
-chaves_producao.txt
+API_Keys.txt
 *.pem
 *.key
 
