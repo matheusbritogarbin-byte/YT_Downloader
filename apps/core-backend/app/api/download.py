@@ -140,7 +140,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_list = str(raw_ip).split(",")
-        client_ip = str(ip_list[0]).strip()
+        client_ip = ip_list[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -186,6 +186,7 @@ async def process_youtube_video(
         orig_url = str(r.get("download_url", ""))
         title_limpo = str(r.get("title", "arquivo")).replace(" ", "_")
 
+        # CORRIGIDO DEFINITIVO: Aponta para o seu endpoint de stream real da nuvem
         proxy_download_url = f"https://railway.app{orig_url}&title={title_limpo}"
 
         results_list.append(
