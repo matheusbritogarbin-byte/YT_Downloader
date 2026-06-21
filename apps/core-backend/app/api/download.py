@@ -161,7 +161,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_list = str(raw_ip).split(",")
-        client_ip = ip_list[0].strip()
+        client_ip = str(ip_list[0]).strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -229,6 +229,7 @@ async def process_youtube_video(
 
         url_codificada = urllib.parse.quote_plus(orig_url)
 
+        # LINK DEFINITIVO DE PRODUÇÃO CORRIGIDO
         proxy_download_url = f"https://railway.app{url_codificada}&title={title_limpo}"
 
         results_list.append(
@@ -262,7 +263,6 @@ async def stream_youtube_bytes(url: str, title: str) -> StreamingResponse:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
         async with httpx.AsyncClient(timeout=None) as client:
-            # Corrigido: Restabelece o fluxo assíncrono nativo para o gerador de bytes
             async with client.stream("GET", url_real, headers=headers) as response:
                 if response.status_code != 200:
                     yield b"Erro ao transmitir arquivo"
