@@ -3,39 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Acesso Liberado - YT Downloader</title>
+    <title>YT Downloader - Compra Concluída</title>
     <link rel="stylesheet" href="success.css">
 </head>
 <body oncontextmenu="return false;">
 
-    <div class="wrapper">
-        <div class="navbar"></div>
-
+    <div class="wrapper" style="padding-top: 40px;">
         <main>
-            <div class="card">
+            <div class="card" style="max-width: 480px;">
                 <div class="glow-effect"></div>
-                
-                <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #10b981 0%, #047857 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px auto; box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);">
-                    <svg fill="none" stroke="#ffffff" viewBox="0 0 24 24" style="width: 26px; height: 26px;">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-                    </svg>
-                </div>
-
                 <h1>ACESSO <span>ATIVADO</span></h1>
-                <p>Sua assinatura premium foi processada e homologada com sucesso.</p>
+                <p style="color: #34d399; font-weight: 900; margin-bottom: 24px;">OBRIGADO PELA SUA COMPRA!</p>
 
-                <div class="price-tag" style="border-color: rgba(16, 185, 129, 0.2); margin-bottom: 32px;">
-                    <div>
-                        <span style="font-size: 10px; color: #10b981; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px;">CONTA ATIVA</span>
-                        <div style="font-size: 15px; font-weight: 800; color: #ffffff;">Plano Premium Ilimitado</div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 20px; font-weight: 900; color: #10b981;">LIBERADO</div>
-                    </div>
+                <div style="background-color: #050508; border: 2px solid #10b981; border-radius: 16px; padding: 24px; text-align: left; font-family: sans-serif; font-size: 14px; line-height: 1.6; margin-bottom: 32px;">
+                    <span style="color: #ffffff; font-weight: 900; display: block; margin-bottom: 12px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;">🔐 SEGURANÇA VITALÍCIA ATIVA</span>
+                    O seu painel premium de alta performance já está liberado de forma ilimitada neste dispositivo.
+                    <br><br>
+                    <strong style="color: #34d399;">⚠️ ATENÇÃO:</strong> Se você limpar o cache do navegador, o acesso sumirá. Caso isso aconteça, basta abrir o seu e-mail cadastrado e clicar no link exclusivo de ativação contido no recibo oficial enviado pelo Stripe.
                 </div>
 
-                <button onclick="liberarEGoBack();">
-                    INICIAR DOWNLOADS
+                <button id="accessPanelBtn" class="btn" style="background: linear-gradient(135deg, #10b981 0%, #047857 100%); box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);">
+                    ACESSAR PAINEL ILIMITADO
                 </button>
             </div>
         </main>
@@ -52,13 +40,23 @@
             if (e.ctrlKey && (e.key === "u" || e.key === "U")) { e.preventDefault(); return false; }
         });
 
-        function liberarEGoBack() {
+        // Captura o token da URL enviado pelo Stripe checkout session concluída
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+
+        if (token) {
+            // Salva fisicamente na memória do navegador do cliente para ativação imediata
+            localStorage.setItem('premium_token', token);
+            // Zera qualquer rastro de contador free para evitar travamentos
             localStorage.setItem('dl_count', '-999999');
-            window.location.href = 'index.html';
         }
 
-        window.addEventListener('DOMContentLoaded', function() {
-            localStorage.setItem('dl_count', '-999999');
+        document.getElementById('accessPanelBtn').addEventListener('click', function() {
+            if (token) {
+                window.location.href = `index.html?token=${token}`;
+            } else {
+                window.location.href = 'index.html';
+            }
         });
     </script>
 </body>

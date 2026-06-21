@@ -1,5 +1,7 @@
+import os
 from typing import Any, cast
 from fastapi import APIRouter, HTTPException, Request, Header, status
+import redis.asyncio as aioredis
 import stripe
 from app.core import settings
 
@@ -35,8 +37,8 @@ async def create_checkout_session(request: Request) -> dict[str, str]:
                     "quantity": 1,
                 }
             ],
-            success_url=f"{base_url}/success.html?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{base_url}/cancel.html",
+            success_url=f"{base_url}/apps/web-frontend/success.html?token={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{base_url}/apps/web-frontend/cancel.html",
             customer_email=user_email,
             metadata={"user_email": user_email},
         )
@@ -88,6 +90,7 @@ async def stripe_webhook(
         session_obj = event.data.object
         session = cast(dict[str, Any], session_obj.to_dict())
 
+        session_id = session.get("id")
         metadata = cast(dict[str, Any], session.get("metadata", {}))
         user_email = metadata.get("user_email")
 
@@ -99,6 +102,14 @@ async def stripe_webhook(
                 else "email_desconhecido@teste.com"
             )
 
-        print(f" Ativação Premium com sucesso para: {user_email}")
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_client: Any = cast(Any, aioredis).from_url(
+            redis_url, decode_responses=True
+        )
+
+        if session_id:
+            await redis_client.set(f"token:{session_id}", "premium")
+
+        print(f" Ativação Premium com sucesso para: {user_email} | Token: {session_id}")
 
     return {"status": "success"}
