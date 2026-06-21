@@ -4,6 +4,6 @@
         "builder": "NIXPACKS"
     },
     "deploy": {
-        "startCommand": "npx serve -l 80"
+        "startCommand": "nginx -c /app/nginx.conf -g 'daemon off;'"
     }
 }
