@@ -48,7 +48,7 @@ class BatchDownloadResponse(BaseModel):
     results: list[DownloadResponseItem]
 
 
-def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
+def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any]:
     cookie_path = "/tmp/youtube_cookies.txt"
     cookies_content = os.getenv("YOUTUBE_COOKIES_DATA", "")
 
@@ -63,17 +63,14 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # CORREÇÃO INDUSTRIAL ABSOLUTA: Remove filtros engessados de codecs no processamento textual de metadados
+    # Configuração elástica definitiva para obter metadados sem simular downloads
     ydl_opts: dict[str, Any] = {
-        "format": "best",
+        "format": "ba*+bv*/best",
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "noplaylist": True,
-        "ignoreerrors": True,
-        "extract_flat": True,
-        "youtube_include_dash_manifest": False,
-        "youtube_include_hls_manifest": False,
+        "ignoreerrors": "only_download",
         "allowed_extractors": ["youtube"],
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -99,8 +96,37 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             if not thumbnail and info.get("id"):
                 thumbnail = f"https://youtube.com{info.get('id')}/mqdefault.jpg"
 
-            video_id = info.get("id", "video_id")
-            download_url = f"https://youtube.com{video_id}"
+            # Varredura manual inteligente de links estáveis pré-renderizados direto da Google
+            download_url = ""
+            formats = info.get("formats", [])
+
+            if formats:
+                if "mp4" in quality_profile:
+                    video_streams = [
+                        f
+                        for f in formats
+                        if f.get("vcodec") != "none"
+                        and f.get("acodec") != "none"
+                        and f.get("url")
+                    ]
+                    if video_streams:
+                        download_url = str(video_streams[-1].get("url", ""))
+                else:
+                    audio_streams = [
+                        f
+                        for f in formats
+                        if f.get("vcodec") == "none"
+                        and f.get("acodec") != "none"
+                        and f.get("url")
+                    ]
+                    if audio_streams:
+                        download_url = str(audio_streams[-1].get("url", ""))
+
+            if not download_url and formats:
+                download_url = str(formats[-1].get("url", ""))
+
+            if not download_url:
+                download_url = str(info.get("url", ""))
 
             return {
                 "title": str(title),
@@ -126,7 +152,7 @@ async def processar_item_async(
 ) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(
-        None, extrair_midia_com_seguranca, str(item.url), is_premium
+        None, extrair_midia_com_seguranca, str(item.url), item.quality_profile
     )
     res["url"] = item.url
     return res
@@ -258,10 +284,10 @@ async def stream_youtube_bytes(
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
             opts = {
-                "format": "best",
+                "format": "ba*+bv*/best",
                 "quiet": True,
                 "no_warnings": True,
-                "ignoreerrors": True,
+                "ignoreerrors": "only_download",
                 "youtube_include_dash_manifest": False,
                 "youtube_include_hls_manifest": False,
                 "allowed_extractors": ["youtube"],
