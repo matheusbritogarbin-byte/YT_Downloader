@@ -48,7 +48,7 @@ class BatchDownloadResponse(BaseModel):
     results: list[DownloadResponseItem]
 
 
-def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
+def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any]:
     cookie_path = "/tmp/youtube_cookies.txt"
     cookies_content = os.getenv("YOUTUBE_COOKIES_DATA", "")
 
@@ -59,9 +59,17 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         except Exception:
             pass
 
-    # Força a extração elástica do link pré-combinado único do Google Video, ignorando processamento de FFmpeg
+    # Seleção inteligente de formatos baseada no perfil escolhido pelo cliente Premium
+    format_selector = "best"
+    if quality_profile == "mp3_320k" or quality_profile == "mp3_128k":
+        format_selector = "bestaudio/best"
+    elif quality_profile == "mp4_1080p":
+        format_selector = "bestvideo[height<=1080]+bestaudio/best"
+    elif quality_profile == "mp4_720p":
+        format_selector = "bestvideo[height<=720]+bestaudio/best"
+
     ydl_opts: dict[str, Any] = {
-        "format": "best",
+        "format": format_selector,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
@@ -80,17 +88,38 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
             extracted = ydl.extract_info(url, download=False)
             if not extracted:
-                raise ValueError(
-                    "O servidor do YouTube não entregou stream válida para este link."
-                )
+                raise ValueError("O servidor do YouTube negou a extração desta stream.")
 
             info = cast(dict[str, Any], extracted)
             title = info.get("title", "Vídeo Sem Título")
             duration = info.get("duration", 0)
             thumbnail = info.get("thumbnail", "")
 
-            # Captura a URL direta e limpa do formato funcional único retornado
-            download_url = str(info.get("url", ""))
+            # Varre e captura a URL direta da stream correspondente
+            download_url = ""
+            formats = info.get("formats", [])
+            if formats:
+                if "mp3" in quality_profile:
+                    audio_streams = [
+                        f for f in formats if f.get("acodec") != "none" and f.get("url")
+                    ]
+                    download_url = (
+                        str(audio_streams[-1].get("url", ""))
+                        if audio_streams
+                        else str(formats[-1].get("url", ""))
+                    )
+                else:
+                    video_streams = [
+                        f for f in formats if f.get("vcodec") != "none" and f.get("url")
+                    ]
+                    download_url = (
+                        str(video_streams[-1].get("url", ""))
+                        if video_streams
+                        else str(formats[-1].get("url", ""))
+                    )
+
+            if not download_url:
+                download_url = str(info.get("url", ""))
 
             return {
                 "title": str(title),
@@ -114,9 +143,10 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
 async def processar_item_async(
     item: DownloadItemRequest, is_premium: bool
 ) -> dict[str, Any]:
+    # Passa o perfil de qualidade escolhido para o extrator
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(
-        None, extrair_midia_com_seguranca, str(item.url), is_premium
+        None, extrair_midia_com_seguranca, str(item.url), item.quality_profile
     )
     res["url"] = item.url
     return res
@@ -180,7 +210,7 @@ async def process_youtube_video(
         if not YOUTUBE_REGEX.match(item.url.strip()):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"URL inválida ou não suportada: {item.url}",
+                detail=f"URL inválida: {item.url}",
             )
 
     tasks = [processar_item_async(item, is_premium) for item in request.items]
@@ -188,28 +218,24 @@ async def process_youtube_video(
 
     results_list: list[DownloadResponseItem] = []
     for r in raw_results:
-        if r.get("status") == "success" and not is_premium:
-            redis_key = f"quota:{client_ip}"
-            current_data = await redis_client.get(redis_key)
-            count = 1
-            if current_data and str(current_data).startswith("downloads:"):
-                try:
-                    parts = str(current_data).split("|")
-                    count_part = parts.split(":")
-                    count = int(count_part) + 1
-                except Exception:
-                    count = 1
-
-            hoje = datetime.now().strftime("%Y-%m-%d")
-            await redis_client.set(redis_key, f"downloads:{count}|data:{hoje}")
-            await redis_client.expire(redis_key, 86400)
-
         orig_url = str(r.get("download_url", ""))
         title_limpo = str(r.get("title", "arquivo")).replace(" ", "_")
-
         url_codificada = urllib.parse.quote_plus(orig_url)
 
-        proxy_download_url = f"https://railway.app{url_codificada}&title={title_limpo}"
+        # Passa o tipo de extensão para a rota de stream saber como nomear o arquivo final
+        extensao = (
+            "mp4"
+            if r.get("url")
+            and not any(x in request.items for x in ["mp3_320k", "mp3_128k"])
+            else "mp3"
+        )
+        for item in request.items:
+            if item.url == r.get("url"):
+                extensao = "mp4" if "mp4" in item.quality_profile else "mp3"
+
+        proxy_download_url = (
+            f"https://railway.app{url_codificada}&title={title_limpo}&ext={extensao}"
+        )
 
         results_list.append(
             DownloadResponseItem(
@@ -231,7 +257,9 @@ async def process_youtube_video(
 
 
 @router.get("/stream")
-async def stream_youtube_bytes(url: str, title: str) -> StreamingResponse:
+async def stream_youtube_bytes(
+    url: str, title: str, ext: str = "mp3"
+) -> StreamingResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
@@ -249,12 +277,15 @@ async def stream_youtube_bytes(url: str, title: str) -> StreamingResponse:
                 async for chunk in response.aiter_bytes(chunk_size=1024 * 64):
                     yield chunk
 
-    filename = f"{title}.mp3"
+    filename = f"{title}.{ext}"
+    mime_type = "video/mp4" if ext == "mp4" else "audio/mpeg"
     return StreamingResponse(
         generate_bytes(),
-        media_type="audio/mpeg",
+        media_type=mime_type,
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
             "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
         },
     )
