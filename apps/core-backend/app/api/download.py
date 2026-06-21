@@ -12,6 +12,7 @@ from app.middleware.rate_limiter import verificar_limite_requisicoes
 
 router = APIRouter(prefix="/download", tags=["Media Downloader"])
 
+# Regex flexivel que aceita links de celular (?si=), Shorts, embeds e playlists sem quebrar
 YOUTUBE_REGEX = re.compile(
     r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/(watch\?v=|shorts/|embed/|playlist\?list=)?([a-zA-Z0-9_-]{11})(\S*)?$"
 )
@@ -139,8 +140,8 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        ip_list = str(raw_ip).split(",")
-        client_ip = ip_list[0].strip()
+        # Limpeza cirúrgica da variável duplicada para zerar o Pylance
+        client_ip = str(raw_ip).split(",")[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -186,7 +187,6 @@ async def process_youtube_video(
         orig_url = str(r.get("download_url", ""))
         title_limpo = str(r.get("title", "arquivo")).replace(" ", "_")
 
-        # CORRIGIDO DEFINITIVO: Aponta para o seu endpoint de stream real da nuvem
         proxy_download_url = f"https://railway.app{orig_url}&title={title_limpo}"
 
         results_list.append(

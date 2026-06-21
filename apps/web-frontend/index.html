@@ -93,7 +93,6 @@
             if (e.ctrlKey && (e.key === "u" || e.key === "U")) { e.preventDefault(); return false; }
         });
 
-        // Se por acaso um usuário já autenticado bater no index.html, ele é jogado para a área dele automaticamente
         function checkActivePremium() {
             const token = localStorage.getItem('premium_token');
             const count = localStorage.getItem('dl_count');
@@ -164,6 +163,7 @@
                     body: JSON.stringify({ items: payloadItems })
                 });
 
+                // Se o Redis retornar bloqueio por IP, intercepta antes do erro genérico
                 if (response.status === 403) {
                     localStorage.setItem('dl_count', MAX_DOWNLOADS.toString());
                     updateUI();
