@@ -122,7 +122,7 @@
                         itemCard.innerHTML = `
                             <img src="${result.thumbnail}" alt="Thumb" style="width: 100%; height: 160px; object-fit: cover; border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);" />
                             <h3 style="font-size: 13px; margin: 12px 0; color: #f8fafc; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-family: sans-serif;">${result.title}</h3>
-                            <button type="button" onclick="dispararDownloadOculto('${result.download_url}')" class="btn btn-green" style="width: 100%; display: block; text-align: center; border: none; cursor: pointer;">BAIXAR ARQUIVO AGORA</button>
+                            <button onclick="executarBlobDownload('${result.download_url}', '${result.title.replace(/'/g, "")}.mp3', this)" class="btn btn-green" style="width: 100%; border: none; cursor: pointer;">BAIXAR ARQUIVO AGORA</button>
                         `;
                         container.appendChild(itemCard);
                     } else {
@@ -138,20 +138,33 @@
                 document.getElementById('videoUrls').value = "";
             }
         });
-
-        function dispararDownloadOculto(url) {
-            let urlLimpa = url;
-            if (urlLimpa.includes("https://railway.apphttps")) {
-                urlLimpa = urlLimpa.replace("https://railway.apphttps", "https");
-            }
-            
-            const novaAba = window.open(urlLimpa, '_blank');
-            if (novaAba) {
-                setTimeout(() => {
-                    try { novaAba.close(); } catch (e) {}
-                }, 600);
+        
+        async function executarBlobDownload(url, filename, botao) {
+            const textoOriginal = botao.innerText;
+            botao.disabled = true;
+            botao.style.opacity = "0.5";
+            botao.innerText = "BAIXANDO ARQUIVO...";
+            try {
+                let urlLimpa = url;
+                if (urlLimpa.includes("https://railway.apphttps")) {
+                    urlLimpa = urlLimpa.replace("https://railway.apphttps", "https");
+                }
+                const res = await fetch(urlLimpa);
+                const blob = await res.blob();
+                const link = document.createElement('a');
+                link.href = window.URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+                window.URL.revokeObjectURL(link.href);
+            } catch (e) {
+                alert("Erro ao transferir os bytes do lote.");
+            } finally {
+                botao.disabled = false;
+                botao.style.opacity = "1";
+                botao.innerText = textoOriginal;
             }
         }
+
     </script>
 </body>
 </html>
