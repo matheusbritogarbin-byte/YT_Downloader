@@ -16,9 +16,8 @@ YOUTUBE_REGEX = re.compile(r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$")
 
 ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3", "100.64.0.4"]
 
-redis_client: Any = cast(Any, aioredis).from_url(
-    os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True
-)
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+redis_client: Any = cast(Any, aioredis).from_url(redis_url, decode_responses=True)
 
 
 class DownloadItemRequest(BaseModel):
@@ -86,7 +85,9 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
                 formats = info.get("formats", [])
                 if formats:
                     download_url = (
-                        formats.get("url") if not is_premium else formats[-1].get("url")
+                        formats[0].get("url")
+                        if not is_premium
+                        else formats[-1].get("url")
                     )
 
             return {
@@ -138,6 +139,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_list = str(raw_ip).split(",")
+        # Sintaxe estrita corrigida com indice zero para evitar quebra de lista no python
         client_ip = ip_list[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
@@ -146,12 +148,17 @@ async def process_youtube_video(
 
     if not is_premium:
         redis_key = f"quota:{client_ip}"
-        current_count = await redis_client.get(redis_key)
-        if current_count is not None and int(current_count) >= 2:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Limite diário excedido no servidor. Adquira o Plano Premium para downloads ilimitados.",
-            )
+        try:
+            current_count = await redis_client.get(redis_key)
+            if current_count is not None and int(current_count) >= 2:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Limite diário excedido no servidor.",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass
 
     if not is_premium and len(request.items) > 1:
         raise HTTPException(
@@ -173,8 +180,11 @@ async def process_youtube_video(
     for r in raw_results:
         if r.get("status") == "success" and not is_premium:
             redis_key = f"quota:{client_ip}"
-            await redis_client.incr(redis_key)
-            await redis_client.expire(redis_key, 86400)
+            try:
+                await redis_client.incr(redis_key)
+                await redis_client.expire(redis_key, 86400)
+            except Exception:
+                pass
 
         orig_url = str(r.get("download_url", ""))
         title_limpo = str(r.get("title", "arquivo")).replace(" ", "_")
