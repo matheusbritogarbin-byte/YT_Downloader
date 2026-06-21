@@ -59,14 +59,17 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
         except Exception:
             pass
 
-    # Força a extração de metadados puros sem pre-carregar tabelas rígidas de formatos
+    url_limpa = url
+    if "list=" in url_limpa:
+        url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
+
     ydl_opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "noplaylist": True,
         "ignoreerrors": True,
-        "extract_flat": True,
+        "extract_flat": "discard_in_playlist",
         "allowed_extractors": ["youtube"],
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -78,24 +81,21 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
 
     try:
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-            extracted = ydl.extract_info(url, download=False)
+            extracted = ydl.extract_info(url_limpa, download=False)
             if not extracted:
                 raise ValueError(
-                    "O servidor do YouTube barrou a requisição de metadados."
+                    "O YouTube bloqueou o acesso temporariamente para este link."
                 )
 
             info = cast(dict[str, Any], extracted)
             title = info.get("title", "Vídeo Sem Título")
             duration = info.get("duration", 0)
 
-            # Garante a captura da thumbnail mesmo no modo flat extract
             thumbnail = info.get("thumbnail", "")
             if not thumbnail and info.get("id"):
                 thumbnail = f"https://youtube.com{info.get('id')}/mqdefault.jpg"
 
-            # O link bruto do YouTube vai direto para o proxy codificado
-            # A extração pesada do Google Video acontecerá sob demanda dentro da rota /stream
-            video_id = info.get("id", url.split("v=")[-1].split("&")[0])
+            video_id = info.get("id", "video_id")
             download_url = f"https://youtube.com{video_id}"
 
             return {
@@ -147,7 +147,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_list = str(raw_ip).split(",")
-        client_ip = ip_list[0].strip()
+        client_ip = ip_list.strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -164,8 +164,8 @@ async def process_youtube_video(
         if current_data and str(current_data).startswith("downloads:"):
             try:
                 parts = str(current_data).split("|")
-                count_part = parts[0].split(":")
-                count = int(count_part[1])
+                count_part = parts.split(":")
+                count = int(count_part)
                 if count >= 2:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
@@ -201,8 +201,8 @@ async def process_youtube_video(
             if current_data and str(current_data).startswith("downloads:"):
                 try:
                     parts = str(current_data).split("|")
-                    count_part = parts[0].split(":")
-                    count = int(count_part[1]) + 1
+                    count_part = parts.split(":")
+                    count = int(count_part) + 1
                 except Exception:
                     count = 1
 
@@ -251,57 +251,58 @@ async def stream_youtube_bytes(
 
     url_real = urllib.parse.unquote_plus(url)
 
-    # Resolve e extrai a stream direta do Google Video na hora exata do clique do download
-    try:
-        format_selector = "bestaudio/best" if ext == "mp3" else "best"
-        opts = {
-            "format": format_selector,
-            "quiet": True,
-            "no_warnings": True,
-            "ignoreerrors": True,
-            "allowed_extractors": ["youtube"],
-        }
+    if "youtube.com" in url_real or "youtu.be" in url_real:
+        try:
+            format_selector = "bestaudio/best" if ext == "mp3" else "best"
+            opts = {
+                "format": format_selector,
+                "quiet": True,
+                "no_warnings": True,
+                "ignoreerrors": True,
+                "allowed_extractors": ["youtube"],
+            }
 
-        cookie_path = "/tmp/youtube_cookies.txt"
-        if os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 0:
-            opts["cookiefile"] = cookie_path
+            cookie_path = "/tmp/youtube_cookies.txt"
+            if os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 0:
+                opts["cookiefile"] = cookie_path
 
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            res_dict = ydl.extract_info(url_real, download=False)
-            if res_dict:
-                download_url_resolved = ""
-                formats = res_dict.get("formats", [])
-                if formats:
-                    if ext == "mp3":
-                        audio_streams = [
-                            f
-                            for f in formats
-                            if f.get("acodec") != "none" and f.get("url")
-                        ]
-                        download_url_resolved = (
-                            str(audio_streams[-1].get("url", ""))
-                            if audio_streams
-                            else str(formats[-1].get("url", ""))
-                        )
-                    else:
-                        video_streams = [
-                            f
-                            for f in formats
-                            if f.get("vcodec") != "none" and f.get("url")
-                        ]
-                        download_url_resolved = (
-                            str(video_streams[-1].get("url", ""))
-                            if video_streams
-                            else str(formats[-1].get("url", ""))
-                        )
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                res_dict = ydl.extract_info(url_real, download=False)
+                if res_dict:
+                    # Correção definitiva: Inicializa a string vazia para o Pylance zerar o alerta de escopo
+                    download_url_resolved = ""
+                    formats = res_dict.get("formats", [])
+                    if formats:
+                        if ext == "mp3":
+                            audio_streams = [
+                                f
+                                for f in formats
+                                if f.get("vcodec") == "none" and f.get("url")
+                            ]
+                            download_url_resolved = (
+                                str(audio_streams[-1].get("url", ""))
+                                if audio_streams
+                                else str(formats[-1].get("url", ""))
+                            )
+                        else:
+                            video_streams = [
+                                f
+                                for f in formats
+                                if f.get("vcodec") != "none" and f.get("url")
+                            ]
+                            download_url_resolved = (
+                                str(video_streams[-1].get("url", ""))
+                                if video_streams
+                                else str(formats[-1].get("url", ""))
+                            )
 
-                if not download_url_resolved:
-                    download_url_resolved = str(res_dict.get("url", ""))
+                    if not download_url_resolved:
+                        download_url_resolved = str(res_dict.get("url", ""))
 
-                if download_url_resolved:
-                    url_real = download_url_resolved
-    except Exception:
-        pass
+                    if download_url_resolved:
+                        url_real = download_url_resolved
+        except Exception:
+            pass
 
     async def generate_bytes() -> AsyncIterator[bytes]:
         headers = {
