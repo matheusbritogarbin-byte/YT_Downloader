@@ -63,14 +63,16 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # Configuração elástica definitiva para obter metadados sem simular downloads
+    # CORREÇÃO INDUSTRIAL: Omitimos o parâmetro format fixo para evitar exceção de codec indisponível
     ydl_opts: dict[str, Any] = {
-        "format": "ba*+bv*/best",
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "noplaylist": True,
-        "ignoreerrors": "only_download",
+        "ignoreerrors": True,
+        "extract_flat": True,
+        "youtube_include_dash_manifest": False,
+        "youtube_include_hls_manifest": False,
         "allowed_extractors": ["youtube"],
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -96,28 +98,20 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
             if not thumbnail and info.get("id"):
                 thumbnail = f"https://youtube.com{info.get('id')}/mqdefault.jpg"
 
-            # Varredura manual inteligente de links estáveis pré-renderizados direto da Google
+            # Varre de forma elástica a árvore de streams reais sem forçar simulações em disco
             download_url = ""
             formats = info.get("formats", [])
 
             if formats:
                 if "mp4" in quality_profile:
                     video_streams = [
-                        f
-                        for f in formats
-                        if f.get("vcodec") != "none"
-                        and f.get("acodec") != "none"
-                        and f.get("url")
+                        f for f in formats if f.get("vcodec") != "none" and f.get("url")
                     ]
                     if video_streams:
                         download_url = str(video_streams[-1].get("url", ""))
                 else:
                     audio_streams = [
-                        f
-                        for f in formats
-                        if f.get("vcodec") == "none"
-                        and f.get("acodec") != "none"
-                        and f.get("url")
+                        f for f in formats if f.get("vcodec") == "none" and f.get("url")
                     ]
                     if audio_streams:
                         download_url = str(audio_streams[-1].get("url", ""))
@@ -177,7 +171,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_parts = str(raw_ip).split(",")
-        client_ip = str(ip_parts[0]).strip()
+        client_ip = ip_parts[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -194,7 +188,7 @@ async def process_youtube_video(
         if current_data and str(current_data).startswith("downloads:"):
             try:
                 parts = str(current_data).split("|")
-                count_part = str(parts[0]).split(":")
+                count_part = parts[0].split(":")
                 count = int(count_part[1])
                 if count >= 2:
                     raise HTTPException(
@@ -231,7 +225,7 @@ async def process_youtube_video(
             if current_data and str(current_data).startswith("downloads:"):
                 try:
                     parts = str(current_data).split("|")
-                    count_part = str(parts[0]).split(":")
+                    count_part = parts[0].split(":")
                     count = int(count_part[1]) + 1
                 except Exception:
                     count = 1
@@ -283,11 +277,12 @@ async def stream_youtube_bytes(
 
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
+            # Resolvedor do stream também roda de forma flat adaptativa limpando o parâmetro format rígido
             opts = {
-                "format": "ba*+bv*/best",
                 "quiet": True,
                 "no_warnings": True,
-                "ignoreerrors": "only_download",
+                "ignoreerrors": True,
+                "extract_flat": True,
                 "youtube_include_dash_manifest": False,
                 "youtube_include_hls_manifest": False,
                 "allowed_extractors": ["youtube"],
