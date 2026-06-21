@@ -253,9 +253,9 @@ async def stream_youtube_bytes(
 
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
-            format_selector = "bestaudio/best" if ext == "mp3" else "best"
+            # Corrigido definitivo: Usa o seletor universal para as streams pesadas na rota /stream
             opts = {
-                "format": format_selector,
+                "format": "ba*+bv*/best",
                 "quiet": True,
                 "no_warnings": True,
                 "ignoreerrors": True,
@@ -269,7 +269,6 @@ async def stream_youtube_bytes(
             with yt_dlp.YoutubeDL(opts) as ydl:
                 res_dict = ydl.extract_info(url_real, download=False)
                 if res_dict:
-                    # Correção definitiva: Inicializa a string vazia para o Pylance zerar o alerta de escopo
                     download_url_resolved = ""
                     formats = res_dict.get("formats", [])
                     if formats:

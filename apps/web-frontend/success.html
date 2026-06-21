@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YT Downloader - Premium Ativado</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body oncontextmenu="return false;">
+
+    <div class="wrapper" style="padding-top: 40px;">
+        <main>
+            <div class="card" style="max-width: 480px; border-color: #10b981; box-shadow: 0 0 40px rgba(16, 185, 129, 0.15), inset 0 0 20px rgba(16, 185, 129, 0.05);">
+                <div class="glow-effect" style="background: linear-gradient(135deg, #10b981, #064e3b);"></div>
+                <h1>ACESSO <span>ATIVADO</span></h1>
+                <p style="color: #10b981; font-weight: 900; margin-bottom: 24px;">OBRIGADO PELA SUA COMPRA!</p>
+
+                <div style="background-color: #050508; border: 2px solid #10b981; border-radius: 16px; padding: 24px; text-align: left; font-family: sans-serif; font-size: 14px; line-height: 1.6; margin-bottom: 32px;">
+                    <span style="color: #ffffff; font-weight: 900; display: block; margin-bottom: 12px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;">🔐 SEGURANÇA VITALÍCIA ATIVA</span>
+                    O seu painel premium de alta performance já está liberado de forma ilimitada neste dispositivo.
+                    <br><br>
+                    <strong style="color: #10b981;">⚠️ ATENÇÃO:</strong> Se você limpar o cache do navegador, o acesso sumirá. Caso isso aconteça, basta abrir o seu e-mail cadastrado e clicar no link exclusivo de ativação contido no recibo oficial enviado pelo Stripe.
+                </div>
+
+                <button id="accessPanelBtn" class="btn btn-green">
+                    ACESSAR PAINEL ILIMITADO
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 YT Downloader.</p>
+    </footer>
+
+    <script>
+        document.addEventListener("keydown", function(e) {
+            if (e.key === "F12") { e.preventDefault(); return false; }
+            if (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J" || e.key === "C")) { e.preventDefault(); return false; }
+            if (e.ctrlKey && (e.key === "u" || e.key === "U")) { e.preventDefault(); return false; }
+        });
+
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+
+        if (token) {
+            localStorage.setItem('premium_token', token);
+            localStorage.setItem('dl_count', '-999999');
+        }
+
+        document.getElementById('accessPanelBtn').addEventListener('click', function() {
+            // Corrigido: Redireciona o usuário pagante direto para o painel isolado premium.html
+            if (token) {
+                window.location.href = `premium.html?token=${token}`;
+            } else {
+                window.location.href = 'premium.html';
+            }
+        });
+    </script>
+</body>
+</html>
