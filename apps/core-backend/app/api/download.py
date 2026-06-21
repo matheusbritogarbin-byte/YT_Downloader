@@ -57,7 +57,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         except Exception:
             pass
 
-    format_opt = "worstaudio/worst" if not is_premium else "bestvideo+bestaudio/best"
+    format_opt = "worstaudio/worst" if not is_premium else "best"
 
     ydl_opts: dict[str, Any] = {
         "format": format_opt,
