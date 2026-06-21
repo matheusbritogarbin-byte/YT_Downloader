@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+from datetime import datetime
 from typing import Any, cast, AsyncIterator
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -57,7 +58,6 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         except Exception:
             pass
 
-    # Utiliza o seletor universal adaptativo que nunca rejeita streams de midia
     ydl_opts: dict[str, Any] = {
         "format": "ba*+bv*/best",
         "quiet": True,
@@ -83,41 +83,37 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             duration = info.get("duration")
             thumbnail = info.get("thumbnail")
 
-            download_url = None
+            download_url = ""
             formats = info.get("formats", [])
 
             if formats:
                 if not is_premium:
-                    # Filtra os formatos leves de audio para economia de banda do plano gratuito
                     audio_formats = [
                         f
                         for f in formats
                         if f.get("vcodec") == "none" and f.get("acodec") != "none"
                     ]
-                    download_url = (
-                        audio_formats[0].get("url")
-                        if audio_formats
-                        else formats[0].get("url")
-                    )
+                    if audio_formats:
+                        download_url = str(audio_formats[0].get("url", ""))
+                    else:
+                        download_url = str(formats[0].get("url", ""))
                 else:
-                    # Filtra a stream unificada de maior qualidade para os clientes Premium
                     combined_formats = [
                         f
                         for f in formats
                         if f.get("vcodec") != "none" and f.get("acodec") != "none"
                     ]
-                    download_url = (
-                        combined_formats[-1].get("url")
-                        if combined_formats
-                        else formats[-1].get("url")
-                    )
+                    if combined_formats:
+                        download_url = str(combined_formats[-1].get("url", ""))
+                    else:
+                        download_url = str(formats[-1].get("url", ""))
 
             if not download_url:
-                download_url = info.get("url")
+                download_url = str(info.get("url", ""))
 
             return {
                 "title": str(title) if title is not None else "Vídeo Sem Título",
-                "download_url": str(download_url) if download_url is not None else "",
+                "download_url": download_url,
                 "duration": int(duration) if isinstance(duration, (int, float)) else 0,
                 "thumbnail": str(thumbnail) if thumbnail is not None else "",
                 "status": "success",
@@ -172,17 +168,26 @@ async def process_youtube_video(
 
     if not is_premium and request.token:
         token_status = await redis_client.get(f"token:{request.token}")
-        if token_status == "premium":
+        if token_status and str(token_status).startswith("premium"):
             is_premium = True
 
     if not is_premium:
         redis_key = f"quota:{client_ip}"
-        current_count = await redis_client.get(redis_key)
-        if current_count is not None and int(current_count) >= 2:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Limite diário excedido no servidor. Adquira o Plano Premium para downloads ilimitados.",
-            )
+        current_data = await redis_client.get(redis_key)
+        if current_data and str(current_data).startswith("downloads:"):
+            try:
+                parts = str(current_data).split("|")
+                count_part = parts[0].split(":")
+                count = int(count_part[1])
+                if count >= 2:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Limite diário excedido no servidor. Adquira o Plano Premium para downloads ilimitados.",
+                    )
+            except HTTPException:
+                raise
+            except Exception:
+                pass
 
     if not is_premium and len(request.items) > 1:
         raise HTTPException(
@@ -204,7 +209,18 @@ async def process_youtube_video(
     for r in raw_results:
         if r.get("status") == "success" and not is_premium:
             redis_key = f"quota:{client_ip}"
-            await redis_client.incr(redis_key)
+            current_data = await redis_client.get(redis_key)
+            count = 1
+            if current_data and str(current_data).startswith("downloads:"):
+                try:
+                    parts = str(current_data).split("|")
+                    count_part = parts[0].split(":")
+                    count = int(count_part[1]) + 1
+                except Exception:
+                    count = 1
+
+            hoje = datetime.now().strftime("%Y-%m-%d")
+            await redis_client.set(redis_key, f"downloads:{count}|data:{hoje}")
             await redis_client.expire(redis_key, 86400)
 
         orig_url = str(r.get("download_url", ""))
