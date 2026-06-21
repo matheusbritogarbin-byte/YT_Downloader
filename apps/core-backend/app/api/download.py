@@ -57,12 +57,14 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         except Exception:
             pass
 
-    # Removido o parametro "format" fixo para evitar erro de codec indisponivel no extract_info
+    # Utiliza o seletor universal adaptativo que nunca rejeita streams de midia
     ydl_opts: dict[str, Any] = {
+        "format": "ba*+bv*/best",
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "noplaylist": True,
+        "ignoreerrors": True,
         "allowed_extractors": ["youtube"],
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -81,33 +83,34 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             duration = info.get("duration")
             thumbnail = info.get("thumbnail")
 
-            # Selecao inteligente e segura das URLs de stream direto da lista de formatos disponiveis
             download_url = None
             formats = info.get("formats", [])
 
             if formats:
                 if not is_premium:
-                    # Filtra apenas por streams que contem audio puro (worstaudio) para economizar banda no plano free
-                    audio_only_formats = [
+                    # Filtra os formatos leves de audio para economia de banda do plano gratuito
+                    audio_formats = [
                         f
                         for f in formats
                         if f.get("vcodec") == "none" and f.get("acodec") != "none"
                     ]
-                    if audio_only_formats:
-                        download_url = audio_only_formats[0].get("url")
-                    else:
-                        download_url = formats[0].get("url")
+                    download_url = (
+                        audio_formats[0].get("url")
+                        if audio_formats
+                        else formats[0].get("url")
+                    )
                 else:
-                    # No plano premium pega a melhor stream unificada ou o ultimo formato de maior qualidade
-                    video_audio_formats = [
+                    # Filtra a stream unificada de maior qualidade para os clientes Premium
+                    combined_formats = [
                         f
                         for f in formats
                         if f.get("vcodec") != "none" and f.get("acodec") != "none"
                     ]
-                    if video_audio_formats:
-                        download_url = video_audio_formats[-1].get("url")
-                    else:
-                        download_url = formats[-1].get("url")
+                    download_url = (
+                        combined_formats[-1].get("url")
+                        if combined_formats
+                        else formats[-1].get("url")
+                    )
 
             if not download_url:
                 download_url = info.get("url")
