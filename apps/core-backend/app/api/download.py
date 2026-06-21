@@ -63,9 +63,9 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # Força o formato elástico pré-combinado único do Google Video, ignorando processamento de FFmpeg
+    # Configuração estável de fallback progressivo direto sem FFmpeg
     ydl_opts: dict[str, Any] = {
-        "format": "best",
+        "format": "ba/b",
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
@@ -87,7 +87,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             extracted = ydl.extract_info(url_limpa, download=False)
             if not extracted:
                 raise ValueError(
-                    "O servidor do YouTube negou a extração direta de fluxos de mídia."
+                    "O YouTube recusou o fornecimento dos metadados deste link."
                 )
 
             info = cast(dict[str, Any], extracted)
@@ -149,6 +149,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_list = str(raw_ip).split(",")
+        # Correção Pylance: Captura o primeiro elemento string do IP antes do strip
         client_ip = ip_list[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
@@ -166,6 +167,7 @@ async def process_youtube_video(
         if current_data and str(current_data).startswith("downloads:"):
             try:
                 parts = str(current_data).split("|")
+                # Correção Pylance: Extrai o elemento string da lista antes de aplicar o split secundário
                 count_part = parts[0].split(":")
                 count = int(count_part[1])
                 if count >= 2:
@@ -255,7 +257,6 @@ async def stream_youtube_bytes(
 
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
-            # CORREÇÃO DEFINITIVA: Força formato elástico único progressivo para dispensar o uso de FFmpeg em disco
             opts = {
                 "format": "best",
                 "quiet": True,
@@ -277,7 +278,6 @@ async def stream_youtube_bytes(
                     formats = res_dict.get("formats", [])
                     if formats:
                         if ext == "mp3":
-                            # Captura de forma elástica a stream progressiva estável contendo áudio funcional
                             audio_streams = [
                                 f
                                 for f in formats
@@ -289,7 +289,6 @@ async def stream_youtube_bytes(
                                 else str(formats[-1].get("url", ""))
                             )
                         else:
-                            # Captura de forma elástica a melhor stream progressiva de vídeo unificado
                             video_streams = [
                                 f
                                 for f in formats
