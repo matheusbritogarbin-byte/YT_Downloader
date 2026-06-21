@@ -12,7 +12,9 @@ from app.middleware.rate_limiter import verificar_limite_requisicoes
 
 router = APIRouter(prefix="/download", tags=["Media Downloader"])
 
-YOUTUBE_REGEX = re.compile(r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$")
+YOUTUBE_REGEX = re.compile(
+    r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/(watch\?v=|shorts/|embed/|playlist\?list=)?([a-zA-Z0-9_-]{11})(\S*)?$"
+)
 
 ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3", "100.64.0.4"]
 
