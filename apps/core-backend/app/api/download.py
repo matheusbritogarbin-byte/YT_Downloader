@@ -23,11 +23,11 @@ ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3", "100.64.0.4"]
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 redis_client: Any = cast(Any, aioredis).from_url(redis_url, decode_responses=True)
 
+# Configuração de Proxy Residencial Dinâmica e Organizada
 user = "lrxlolkp"
 senha = "nr93zkbnhywf"
 ip = "45.38.107.97"
 porta = "6014"
-
 PROXY_URL = f"http://{user}:{senha}@{ip}:{porta}"
 
 
@@ -55,7 +55,7 @@ class BatchDownloadResponse(BaseModel):
     results: list[DownloadResponseItem]
 
 
-def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any]:
+def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
     cookie_path = "/tmp/youtube_cookies.txt"
     cookies_content = os.getenv("YOUTUBE_COOKIES_DATA", "")
 
@@ -70,7 +70,6 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # Injetada a flag "proxy" residencial para mascarar as buscas do data center da Railway
     ydl_opts: dict[str, Any] = {
         "proxy": PROXY_URL,
         "quiet": True,
@@ -95,7 +94,7 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
             extracted = ydl.extract_info(url_limpa, download=False)
             if not extracted:
                 raise ValueError(
-                    "O YouTube recusou o fornecimento dos metadados através do canal seguro."
+                    "O YouTube recusou o fornecimento dos metadados deste link."
                 )
 
             info = cast(dict[str, Any], extracted)
@@ -133,7 +132,7 @@ async def processar_item_async(
 ) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(
-        None, extrair_midia_com_seguranca, str(item.url), item.quality_profile
+        None, extrair_midia_com_seguranca, str(item.url), is_premium
     )
     res["url"] = item.url
     return res
@@ -264,10 +263,10 @@ async def stream_youtube_bytes(
 
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
-            # Resolvedor do stream também configurado com o túnel proxy residencial estável
+            # Com o FFmpeg injetado via nixpacks.toml, usamos a árvore elástica "ba*+bv*/best" sem travar
             opts = {
                 "proxy": PROXY_URL,
-                "format": "best",
+                "format": "ba*+bv*/best",
                 "quiet": True,
                 "no_warnings": True,
                 "ignoreerrors": True,
