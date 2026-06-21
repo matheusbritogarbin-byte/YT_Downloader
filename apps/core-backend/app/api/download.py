@@ -70,7 +70,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # Força a extração de metadados planos sem pre-carregar tabelas rígidas de codecs
+    # Configuração industrial blindada anti-captcha e emulação de Android nativo
     ydl_opts: dict[str, Any] = {
         "proxy": PROXY_URL,
         "quiet": True,
@@ -79,11 +79,13 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         "noplaylist": True,
         "ignoreerrors": True,
         "extract_flat": True,
-        "youtube_include_dash_manifest": False,
-        "youtube_include_hls_manifest": False,
-        "allowed_extractors": ["youtube"],
+        # Força o yt-dlp a usar os extratores de clientes móveis que não exigem login
+        "extractor_args": {
+            "youtube": {"client": ["android", "web_safari"], "skip": ["dash", "hls"]}
+        },
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
         },
     }
 
