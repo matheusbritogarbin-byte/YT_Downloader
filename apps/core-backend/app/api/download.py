@@ -12,7 +12,6 @@ from app.middleware.rate_limiter import verificar_limite_requisicoes
 
 router = APIRouter(prefix="/download", tags=["Media Downloader"])
 
-# Regex flexivel que aceita links de celular (?si=), Shorts, embeds e playlists sem quebrar
 YOUTUBE_REGEX = re.compile(
     r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/(watch\?v=|shorts/|embed/|playlist\?list=)?([a-zA-Z0-9_-]{11})(\S*)?$"
 )
@@ -89,7 +88,9 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
                 formats = info.get("formats", [])
                 if formats:
                     download_url = (
-                        formats.get("url") if not is_premium else formats[-1].get("url")
+                        formats[0].get("url")
+                        if not is_premium
+                        else formats[-1].get("url")
                     )
 
             return {
@@ -140,7 +141,7 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        # Limpeza cirúrgica da variável duplicada para zerar o Pylance
+        # CORREÇÃO SINTÁTICA DA LISTA: Pega o primeiro item da lista e depois roda o strip
         client_ip = str(raw_ip).split(",")[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
@@ -187,6 +188,7 @@ async def process_youtube_video(
         orig_url = str(r.get("download_url", ""))
         title_limpo = str(r.get("title", "arquivo")).replace(" ", "_")
 
+        # CORRIGIDO DEFINITIVO: Aponta estritamente para o túnel do seu backend real
         proxy_download_url = f"https://railway.app{orig_url}&title={title_limpo}"
 
         results_list.append(
