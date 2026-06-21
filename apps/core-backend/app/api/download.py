@@ -59,14 +59,15 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         except Exception:
             pass
 
-    # Força o formato "best" para obter links diretos pre-renderizados sem exigir o ffmpeg no servidor
     ydl_opts: dict[str, Any] = {
-        "format": "best",
+        "format": "best/bestvideo+bestaudio",
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "noplaylist": True,
         "ignoreerrors": True,
+        "youtube_include_dash_manifest": False,
+        "youtube_include_hls_manifest": False,
         "allowed_extractors": ["youtube"],
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -85,8 +86,20 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             duration = info.get("duration")
             thumbnail = info.get("thumbnail")
 
-            # Captura a URL direta e limpa do formato "best" entregue pelo Google Video
-            download_url = str(info.get("url", ""))
+            download_url = ""
+            formats = info.get("formats", [])
+
+            if formats:
+                audio_streams = [
+                    f for f in formats if f.get("acodec") != "none" and f.get("url")
+                ]
+                if audio_streams:
+                    download_url = str(audio_streams[-1].get("url", ""))
+                else:
+                    download_url = str(formats[-1].get("url", ""))
+
+            if not download_url:
+                download_url = str(info.get("url", ""))
 
             return {
                 "title": str(title) if title is not None else "Vídeo Sem Título",
