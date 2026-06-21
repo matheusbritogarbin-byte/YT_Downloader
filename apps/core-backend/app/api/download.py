@@ -4,7 +4,6 @@ import re
 import urllib.parse
 from datetime import datetime
 from typing import Any, cast, AsyncIterator
-
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
@@ -60,15 +59,13 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         except Exception:
             pass
 
-    # Configuração elástica inquebrável para ignorar simulações rígidas de codecs
+    # Configuracao limpa e sem filtros rigidos para evitar erros de assinatura de formatos do YouTube
     ydl_opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "noplaylist": True,
         "ignoreerrors": True,
-        "skip_download": True,
-        "extract_flat": False,
         "allowed_extractors": ["youtube"],
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -82,20 +79,22 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
             extracted = ydl.extract_info(url, download=False)
             if not extracted:
-                raise ValueError("Nenhum dado extraído do link.")
+                raise ValueError(
+                    "Video temporariamente indisponível no servidor do YouTube."
+                )
 
             info = cast(dict[str, Any], extracted)
             title = info.get("title", "Vídeo Sem Título")
             duration = info.get("duration", 0)
             thumbnail = info.get("thumbnail", "")
 
-            # Fatiamento e varredura assíncrona elástica das streams
+            # Varredura dinamica elástica das streams disponiveis no array
             download_url = ""
             formats: list[dict[str, Any]] = info.get("formats", [])
 
             if formats:
                 if not is_premium:
-                    # Filtra apenas por fluxos de áudio estáveis (mp3/m4a leves) para a cota grátis
+                    # Cota gratuita extrai apenas fluxos de audio direto (m4a/webm leve) para poupar banda
                     audio_streams = [
                         f
                         for f in formats
@@ -103,12 +102,12 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
                         and f.get("acodec") != "none"
                         and f.get("url")
                     ]
-                    if audio_streams:
-                        download_url = str(audio_streams[0].get("url", ""))
+                    if audio_formats := audio_streams:
+                        download_url = str(audio_formats[0].get("url", ""))
                     else:
                         download_url = str(formats[0].get("url", ""))
                 else:
-                    # No plano Premium extrai a melhor stream combinada direta de áudio e vídeo de maior resolução
+                    # Plano Premium extrai o melhor fluxo unificado de maior qualidade pre-combinada
                     combined_streams = [
                         f
                         for f in formats
@@ -116,8 +115,8 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
                         and f.get("acodec") != "none"
                         and f.get("url")
                     ]
-                    if combined_streams:
-                        download_url = str(combined_streams[-1].get("url", ""))
+                    if premium_formats := combined_streams:
+                        download_url = str(premium_formats[-1].get("url", ""))
                     else:
                         download_url = str(formats[-1].get("url", ""))
 
@@ -148,10 +147,7 @@ async def processar_item_async(
 ) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(
-        None,
-        extrair_midia_com_seguranca,
-        str(item.url),
-        is_premium,
+        None, extrair_midia_com_seguranca, str(item.url), is_premium
     )
     res["url"] = item.url
     return res
@@ -167,8 +163,7 @@ async def process_youtube_video(
 ) -> BatchDownloadResponse:
     if not request.items:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Nenhum item enviado.",
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhum item enviado."
         )
 
     try:
