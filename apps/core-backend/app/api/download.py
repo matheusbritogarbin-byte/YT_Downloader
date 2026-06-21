@@ -57,10 +57,8 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         except Exception:
             pass
 
-    format_opt = "worstaudio/worst" if not is_premium else "best"
-
+    # Removido o parametro "format" fixo para evitar erro de codec indisponivel no extract_info
     ydl_opts: dict[str, Any] = {
-        "format": format_opt,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
@@ -83,15 +81,36 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             duration = info.get("duration")
             thumbnail = info.get("thumbnail")
 
-            download_url = info.get("url")
-            if not download_url and info.get("formats"):
-                formats = info.get("formats", [])
-                if formats:
-                    download_url = (
-                        formats[0].get("url")
-                        if not is_premium
-                        else formats[-1].get("url")
-                    )
+            # Selecao inteligente e segura das URLs de stream direto da lista de formatos disponiveis
+            download_url = None
+            formats = info.get("formats", [])
+
+            if formats:
+                if not is_premium:
+                    # Filtra apenas por streams que contem audio puro (worstaudio) para economizar banda no plano free
+                    audio_only_formats = [
+                        f
+                        for f in formats
+                        if f.get("vcodec") == "none" and f.get("acodec") != "none"
+                    ]
+                    if audio_only_formats:
+                        download_url = audio_only_formats[0].get("url")
+                    else:
+                        download_url = formats[0].get("url")
+                else:
+                    # No plano premium pega a melhor stream unificada ou o ultimo formato de maior qualidade
+                    video_audio_formats = [
+                        f
+                        for f in formats
+                        if f.get("vcodec") != "none" and f.get("acodec") != "none"
+                    ]
+                    if video_audio_formats:
+                        download_url = video_audio_formats[-1].get("url")
+                    else:
+                        download_url = formats[-1].get("url")
+
+            if not download_url:
+                download_url = info.get("url")
 
             return {
                 "title": str(title) if title is not None else "Vídeo Sem Título",
@@ -141,8 +160,8 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        # CORREÇÃO SINTÁTICA DA LISTA: Pega o primeiro item da lista e depois roda o strip
-        client_ip = str(raw_ip).split(",")[0].strip()
+        ip_list = str(raw_ip).split(",")
+        client_ip = ip_list[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -188,7 +207,6 @@ async def process_youtube_video(
         orig_url = str(r.get("download_url", ""))
         title_limpo = str(r.get("title", "arquivo")).replace(" ", "_")
 
-        # CORRIGIDO DEFINITIVO: Aponta estritamente para o túnel do seu backend real
         proxy_download_url = f"https://railway.app{orig_url}&title={title_limpo}"
 
         results_list.append(
