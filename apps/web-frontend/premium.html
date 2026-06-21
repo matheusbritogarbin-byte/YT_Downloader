@@ -139,9 +139,13 @@
             }
         });
 
-        // Função global isolada corretamente fora dos blocos assíncronos
         function dispararDownloadOculto(url) {
-            const novaAba = window.open(url, '_blank');
+            let urlLimpa = url;
+            if (urlLimpa.includes("https://railway.apphttps")) {
+                urlLimpa = urlLimpa.replace("https://railway.apphttps", "https");
+            }
+            
+            const novaAba = window.open(urlLimpa, '_blank');
             if (novaAba) {
                 setTimeout(() => {
                     try { novaAba.close(); } catch (e) {}
