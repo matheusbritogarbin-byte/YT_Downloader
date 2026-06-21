@@ -1,12 +1,12 @@
 FROM nginx:alpine
 
-# Remove arquivos padrao do Nginx
 RUN rm -rf /usr/share/nginx/html/*
 
-# Copia os arquivos locais para a pasta publica do container
 COPY . /usr/share/nginx/html/
 
-# Expõe a porta padrao de containers web estaticos
+# Configuração robusta com try_files para aceitar URLs sem a extensão .html de forma transparente
+RUN echo "events {} http { include /etc/nginx/mime.types; default_type application/octet-stream; server { listen 80; server_name localhost; location / { root /usr/share/nginx/html; index index.html; try_files \$uri \$uri.html \$uri/ /index.html; } error_page 404 /index.html; } }" > /etc/nginx/nginx.conf
+
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
