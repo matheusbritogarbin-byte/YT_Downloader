@@ -63,16 +63,18 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # Força a extração elástica usando formato de fallback seguro e desativando DASH para pular FFmpeg
+    # Com o FFmpeg instalado via Aptfile, podemos usar seletores robustos de forma livre
+    format_selector = "bestaudio/best"
+    if "mp4" in quality_profile:
+        format_selector = "bestvideo+bestaudio/best"
+
     ydl_opts: dict[str, Any] = {
-        "format": "bestaudio/best",
+        "format": format_selector,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "noplaylist": True,
         "ignoreerrors": True,
-        "youtube_include_dash_manifest": False,
-        "youtube_include_hls_manifest": False,
         "allowed_extractors": ["youtube"],
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -87,7 +89,7 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
             extracted = ydl.extract_info(url_limpa, download=False)
             if not extracted:
                 raise ValueError(
-                    "O YouTube bloqueou a extração direta de fluxos de mídia."
+                    "O YouTube recusou a extração direta de fluxos de mídia."
                 )
 
             info = cast(dict[str, Any], extracted)
@@ -95,7 +97,6 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
             duration = info.get("duration", 0)
             thumbnail = info.get("thumbnail", "")
 
-            # Varre a árvore elástica de formatos extraídos sem amarras de simulação
             download_url = ""
             formats = info.get("formats", [])
 
@@ -171,7 +172,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_list = str(raw_ip).split(",")
-        client_ip = ip_list.strip()
+        client_ip = str(ip_list[0]).strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -188,8 +189,8 @@ async def process_youtube_video(
         if current_data and str(current_data).startswith("downloads:"):
             try:
                 parts = str(current_data).split("|")
-                count_part = parts.split(":")
-                count = int(count_part)
+                count_part = str(parts[0]).split(":")
+                count = int(count_part[1])
                 if count >= 2:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
@@ -225,8 +226,8 @@ async def process_youtube_video(
             if current_data and str(current_data).startswith("downloads:"):
                 try:
                     parts = str(current_data).split("|")
-                    count_part = parts.split(":")
-                    count = int(count_part) + 1
+                    count_part = str(parts[0]).split(":")
+                    count = int(count_part[1]) + 1
                 except Exception:
                     count = 1
 
