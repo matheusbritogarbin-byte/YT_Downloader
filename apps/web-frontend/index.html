@@ -156,7 +156,7 @@
             const payloadItems = [{ url: videoUrl, quality_profile: "mp3_128k" }];
 
             try {
-                const response = await fetch(`${API_BASE_URL}/download/processar`, {
+                const response = await fetch(`${API_BASE_URL}download/processar`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ items: payloadItems })
