@@ -59,7 +59,6 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         except Exception:
             pass
 
-    # Configuracao limpa e sem filtros rigidos para evitar erros de assinatura de formatos do YouTube
     ydl_opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
@@ -80,7 +79,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             extracted = ydl.extract_info(url, download=False)
             if not extracted:
                 raise ValueError(
-                    "Video temporariamente indisponível no servidor do YouTube."
+                    "Vídeo temporariamente indisponível no servidor do YouTube."
                 )
 
             info = cast(dict[str, Any], extracted)
@@ -88,13 +87,11 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             duration = info.get("duration", 0)
             thumbnail = info.get("thumbnail", "")
 
-            # Varredura dinamica elástica das streams disponiveis no array
             download_url = ""
-            formats: list[dict[str, Any]] = info.get("formats", [])
+            formats = info.get("formats", [])
 
             if formats:
                 if not is_premium:
-                    # Cota gratuita extrai apenas fluxos de audio direto (m4a/webm leve) para poupar banda
                     audio_streams = [
                         f
                         for f in formats
@@ -102,12 +99,11 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
                         and f.get("acodec") != "none"
                         and f.get("url")
                     ]
-                    if audio_formats := audio_streams:
-                        download_url = str(audio_formats[0].get("url", ""))
+                    if audio_streams:
+                        download_url = str(audio_streams[0].get("url", ""))
                     else:
                         download_url = str(formats[0].get("url", ""))
                 else:
-                    # Plano Premium extrai o melhor fluxo unificado de maior qualidade pre-combinada
                     combined_streams = [
                         f
                         for f in formats
@@ -115,8 +111,8 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
                         and f.get("acodec") != "none"
                         and f.get("url")
                     ]
-                    if premium_formats := combined_streams:
-                        download_url = str(premium_formats[-1].get("url", ""))
+                    if combined_streams:
+                        download_url = str(combined_streams[-1].get("url", ""))
                     else:
                         download_url = str(formats[-1].get("url", ""))
 
