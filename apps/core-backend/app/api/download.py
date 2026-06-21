@@ -23,7 +23,7 @@ ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3", "100.64.0.4"]
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 redis_client: Any = cast(Any, aioredis).from_url(redis_url, decode_responses=True)
 
-# Configuração de Proxy Residencial Dinâmica e Organizada
+# Configuração de Proxy Residencial Dinâmica via f-string para facilitar manutenções futuras
 user = "lrxlolkp"
 senha = "nr93zkbnhywf"
 ip = "45.38.107.97"
@@ -70,7 +70,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # Força a extração elástica textual para pular testes de codecs pesados no boot do processar
+    # Força a extração de metadados planos sem pre-carregar tabelas rígidas de codecs
     ydl_opts: dict[str, Any] = {
         "proxy": PROXY_URL,
         "quiet": True,
@@ -95,7 +95,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             extracted = ydl.extract_info(url_limpa, download=False)
             if not extracted:
                 raise ValueError(
-                    "O YouTube recusou o fornecimento dos metadados deste link."
+                    "O YouTube recusou o fornecimento dos metadados textuais para este link."
                 )
 
             info = cast(dict[str, Any], extracted)
@@ -264,10 +264,9 @@ async def stream_youtube_bytes(
 
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
-            # CORREÇÃO DEFINITIVA: Força o formato elástico único "best" pré-renderizado, dispensando FFmpeg em disco
+            # Omitida qualquer restrição rígida de formato para forçar a Google a entregar links progressivos leves sem FFmpeg
             opts = {
                 "proxy": PROXY_URL,
-                "format": "best",
                 "quiet": True,
                 "no_warnings": True,
                 "ignoreerrors": True,
@@ -285,29 +284,18 @@ async def stream_youtube_bytes(
                 if res_dict:
                     download_url_resolved = ""
                     formats = res_dict.get("formats", [])
+
                     if formats:
-                        if ext == "mp3":
-                            audio_streams = [
-                                f
-                                for f in formats
-                                if f.get("vcodec") == "none" and f.get("url")
-                            ]
-                            download_url_resolved = (
-                                str(audio_streams[-1].get("url", ""))
-                                if audio_streams
-                                else str(formats[-1].get("url", ""))
-                            )
-                        else:
-                            video_streams = [
-                                f
-                                for f in formats
-                                if f.get("vcodec") != "none" and f.get("url")
-                            ]
-                            download_url_resolved = (
-                                str(video_streams[-1].get("url", ""))
-                                if video_streams
-                                else str(formats[-1].get("url", ""))
-                            )
+                        # Varredura inteligente de streams progressivas prontas contendo faixas integradas
+                        valid_streams = [
+                            f
+                            for f in formats
+                            if f.get("url")
+                            and f.get("vcodec") != "none"
+                            and f.get("acodec") != "none"
+                        ]
+                        if valid_streams:
+                            download_url_resolved = str(valid_streams[0].get("url", ""))
 
                     if not download_url_resolved:
                         download_url_resolved = str(res_dict.get("url", ""))
