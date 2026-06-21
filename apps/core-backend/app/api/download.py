@@ -63,6 +63,7 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
+    # Coleta os metadados textuais em flat extract para evitar erros de codecs no boot
     ydl_opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
@@ -253,9 +254,8 @@ async def stream_youtube_bytes(
 
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
-            # Corrigido definitivo: Usa o seletor universal para as streams pesadas na rota /stream
+            # Omitimos o parametro 'format' fixo para permitir a extracao bruta completa de metadados de codecs sem crashar
             opts = {
-                "format": "ba*+bv*/best",
                 "quiet": True,
                 "no_warnings": True,
                 "ignoreerrors": True,
@@ -273,6 +273,7 @@ async def stream_youtube_bytes(
                     formats = res_dict.get("formats", [])
                     if formats:
                         if ext == "mp3":
+                            # Varredura elástica manual de áudio direto
                             audio_streams = [
                                 f
                                 for f in formats
@@ -284,6 +285,7 @@ async def stream_youtube_bytes(
                                 else str(formats[-1].get("url", ""))
                             )
                         else:
+                            # Varredura elástica manual de vídeo direto
                             video_streams = [
                                 f
                                 for f in formats
