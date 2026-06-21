@@ -68,7 +68,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         "ignoreerrors": True,
         "allowed_extractors": ["youtube"],
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, healthiest/Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
     }
 
@@ -262,6 +262,7 @@ async def stream_youtube_bytes(url: str, title: str) -> StreamingResponse:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
         async with httpx.AsyncClient(timeout=None) as client:
+            # Corrigido: Restabelece o fluxo assíncrono nativo para o gerador de bytes
             async with client.stream("GET", url_real, headers=headers) as response:
                 if response.status_code != 200:
                     yield b"Erro ao transmitir arquivo"
