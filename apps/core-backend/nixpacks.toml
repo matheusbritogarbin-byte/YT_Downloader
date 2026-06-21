@@ -1,0 +1,5 @@
+[providers]
+python = {}
+
+[phases.setup]
+nixPkgs = ["...", "ffmpeg", "git"]
