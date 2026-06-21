@@ -59,7 +59,9 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         except Exception:
             pass
 
+    # Força a extração elástica do link pré-combinado único do Google Video, ignorando processamento de FFmpeg
     ydl_opts: dict[str, Any] = {
+        "format": "best",
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
@@ -79,7 +81,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             extracted = ydl.extract_info(url, download=False)
             if not extracted:
                 raise ValueError(
-                    "Vídeo temporariamente indisponível no servidor do YouTube."
+                    "O servidor do YouTube não entregou stream válida para este link."
                 )
 
             info = cast(dict[str, Any], extracted)
@@ -87,37 +89,8 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             duration = info.get("duration", 0)
             thumbnail = info.get("thumbnail", "")
 
-            download_url = ""
-            formats = info.get("formats", [])
-
-            if formats:
-                if not is_premium:
-                    audio_streams = [
-                        f
-                        for f in formats
-                        if f.get("vcodec") == "none"
-                        and f.get("acodec") != "none"
-                        and f.get("url")
-                    ]
-                    if audio_streams:
-                        download_url = str(audio_streams[0].get("url", ""))
-                    else:
-                        download_url = str(formats[0].get("url", ""))
-                else:
-                    combined_streams = [
-                        f
-                        for f in formats
-                        if f.get("vcodec") != "none"
-                        and f.get("acodec") != "none"
-                        and f.get("url")
-                    ]
-                    if combined_streams:
-                        download_url = str(combined_streams[-1].get("url", ""))
-                    else:
-                        download_url = str(formats[-1].get("url", ""))
-
-            if not download_url:
-                download_url = str(info.get("url", ""))
+            # Captura a URL direta e limpa do formato funcional único retornado
+            download_url = str(info.get("url", ""))
 
             return {
                 "title": str(title),
@@ -168,7 +141,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_list = str(raw_ip).split(",")
-        client_ip = ip_list[0].strip()
+        client_ip = ip_list.strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -185,8 +158,8 @@ async def process_youtube_video(
         if current_data and str(current_data).startswith("downloads:"):
             try:
                 parts = str(current_data).split("|")
-                count_part = parts[0].split(":")
-                count = int(count_part[1])
+                count_part = parts.split(":")
+                count = int(count_part)
                 if count >= 2:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
@@ -222,8 +195,8 @@ async def process_youtube_video(
             if current_data and str(current_data).startswith("downloads:"):
                 try:
                     parts = str(current_data).split("|")
-                    count_part = parts[0].split(":")
-                    count = int(count_part[1]) + 1
+                    count_part = parts.split(":")
+                    count = int(count_part) + 1
                 except Exception:
                     count = 1
 
