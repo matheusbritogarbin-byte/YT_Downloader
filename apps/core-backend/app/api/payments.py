@@ -1,7 +1,5 @@
-import os
 from typing import Any, cast
 from fastapi import APIRouter, HTTPException, Request, Header, status
-import redis.asyncio as aioredis
 import stripe
 from app.core import settings
 
@@ -37,8 +35,9 @@ async def create_checkout_session(request: Request) -> dict[str, str]:
                     "quantity": 1,
                 }
             ],
-            success_url=f"{base_url}/apps/web-frontend/success.html?token={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{base_url}/apps/web-frontend/cancel.html",
+            # Corrigido: Aponta direto para a raiz limpa do domínio em produção
+            success_url=f"{base_url}/success.html?token={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{base_url}/cancel.html",
             customer_email=user_email,
             metadata={"user_email": user_email},
         )
@@ -101,6 +100,9 @@ async def stripe_webhook(
                 if customer_details
                 else "email_desconhecido@teste.com"
             )
+
+        import redis.asyncio as aioredis
+        import os
 
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
         redis_client: Any = cast(Any, aioredis).from_url(
