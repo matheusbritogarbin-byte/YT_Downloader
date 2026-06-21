@@ -63,13 +63,14 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
+    # CORREÇÃO DEFINITIVA: Desativa checagem estrita de codecs de vídeo para evitar quebra no boot do extract_info
     ydl_opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "noplaylist": True,
         "ignoreerrors": True,
-        "extract_flat": "discard_in_playlist",
+        "extract_flat": True,
         "allowed_extractors": ["youtube"],
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -84,7 +85,7 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
             extracted = ydl.extract_info(url_limpa, download=False)
             if not extracted:
                 raise ValueError(
-                    "O YouTube bloqueou o acesso temporariamente para este link."
+                    "O YouTube recusou o fornecimento dos metadados deste link."
                 )
 
             info = cast(dict[str, Any], extracted)
@@ -147,7 +148,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_list = str(raw_ip).split(",")
-        client_ip = ip_list.strip()
+        client_ip = ip_list[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -164,8 +165,8 @@ async def process_youtube_video(
         if current_data and str(current_data).startswith("downloads:"):
             try:
                 parts = str(current_data).split("|")
-                count_part = parts.split(":")
-                count = int(count_part)
+                count_part = parts[0].split(":")
+                count = int(count_part[1])
                 if count >= 2:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
@@ -201,8 +202,8 @@ async def process_youtube_video(
             if current_data and str(current_data).startswith("downloads:"):
                 try:
                     parts = str(current_data).split("|")
-                    count_part = parts.split(":")
-                    count = int(count_part) + 1
+                    count_part = parts[0].split(":")
+                    count = int(count_part[1]) + 1
                 except Exception:
                     count = 1
 
@@ -253,7 +254,7 @@ async def stream_youtube_bytes(
 
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
-            # Força o formato elástico único "best" para pular qualquer validação que exija FFmpeg no servidor
+            # O resolvedor de stream força a captura elástica adaptativa "best" para pular dependência de FFmpeg local
             opts = {
                 "format": "best",
                 "quiet": True,
