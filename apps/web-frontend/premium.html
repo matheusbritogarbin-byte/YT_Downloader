@@ -74,6 +74,8 @@
         window.addEventListener('DOMContentLoaded', function() {
             const token = getUrlToken();
             const count = localStorage.getItem('dl_count');
+            
+            // Se não houver token na URL E não houver registro premium no cache, barra o espertinho
             if (!token && count !== '-999999') {
                 window.location.href = "index.html";
             }

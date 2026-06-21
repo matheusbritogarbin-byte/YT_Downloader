@@ -18,8 +18,8 @@
         <main>
             <div class="card">
                 <div class="glow-effect"></div>
-                <h1 id="mainTitle">YT <span>Downloader</span></h1>
-                <p id="mainDesc">Download gratuito de áudio mp3 na qualidade padrão do servidor.</p>
+                <h1>YT <span>Downloader</span></h1>
+                <p>Download gratuito de áudio mp3 na qualidade padrão do servidor.</p>
 
                 <form id="downloadForm" class="input-group">
                     <textarea 
@@ -29,15 +29,6 @@
                         rows="1"
                         style="width: 100%; padding: 18px 20px; background-color: #050508; border: 2px solid #1f2937; border-radius: 16px; color: #ffffff; font-family: sans-serif; font-size: 14px; font-weight: 600; outline: none; resize: none; box-sizing: border-box; transition: all 0.2s ease;"
                     ></textarea>
-                    
-                    <div id="qualitySelectionContainer" style="background-color: #050508; border: 2px solid #1f2937; border-radius: 16px; padding: 16px; text-align: left; font-family: sans-serif; font-size: 13px; display: none;">
-                        <span style="color: #10b981; font-weight: 900; display: block; margin-bottom: 12px; font-size: 11px; letter-spacing: 1px;">SELECIONE A QUALIDADE PREMIUM</span>
-                        <div style="display: flex; flex-direction: column; gap: 10px;">
-                            <label style="color: #f8fafc; cursor: pointer;"><input type="radio" name="qualityProfile" value="mp4_1080p" checked style="margin-right: 8px; accent-color: #10b981;"> MP4 Vídeo - FULL HD 1080p</label>
-                            <label style="color: #f8fafc; cursor: pointer;"><input type="radio" name="qualityProfile" value="mp4_720p" style="margin-right: 8px; accent-color: #10b981;"> MP4 Vídeo - HD 720p</label>
-                            <label style="color: #f8fafc; cursor: pointer;"><input type="radio" name="qualityProfile" value="mp3_320k" style="margin-right: 8px; accent-color: #10b981;"> MP3 Áudio - ULTRA HQ 320kbps</label>
-                        </div>
-                    </div>
                     
                     <button type="submit">
                         DOWNLOAD
@@ -102,14 +93,13 @@
             if (e.ctrlKey && (e.key === "u" || e.key === "U")) { e.preventDefault(); return false; }
         });
 
-        function getUrlToken() {
-            const params = new URLSearchParams(window.location.search);
-            const urlToken = params.get('token');
-            if (urlToken) {
-                localStorage.setItem('premium_token', urlToken);
-                return urlToken;
+        // Se por acaso um usuário já autenticado bater no index.html, ele é jogado para a área dele automaticamente
+        function checkActivePremium() {
+            const token = localStorage.getItem('premium_token');
+            const count = localStorage.getItem('dl_count');
+            if (token || count === '-999999') {
+                window.location.href = token ? `premium.html?token=${token}` : "premium.html";
             }
-            return localStorage.getItem('premium_token');
         }
 
         function getStorageData() {
@@ -124,35 +114,13 @@
         }
 
         function updateUI() {
-            const token = getUrlToken();
-            if (token) {
-                document.getElementById('upgradeBtn').style.display = "none";
-                document.getElementById('footerQuota').innerHTML = '<div style="color: #10b981; font-weight: 900;">SESSÃO PREMIUM CRIPTOGRAFADA ATIVA</div>';
-                document.getElementById('mainTitle').innerHTML = 'PREMIUM <span>PANEL</span>';
-                document.getElementById('mainDesc').innerText = 'Painel de controle de alta performance. Extração em lote liberada.';
-                
-                const textarea = document.getElementById('videoUrl');
-                textarea.placeholder = "Cole múltiplos links do YouTube aqui (um por linha)...";
-                textarea.rows = 5;
-                
-                const card = document.querySelector('.card');
-                card.style.borderColor = "#10b981";
-                card.style.boxShadow = "0 0 40px rgba(16, 185, 129, 0.15), inset 0 0 20px rgba(16, 185, 129, 0.05)";
-                
-                const glow = document.querySelector('.glow-effect');
-                glow.style.background = "linear-gradient(135deg, #10b981, #064e3b)";
-                
-                document.getElementById('qualitySelectionContainer').style.display = "block";
-                return;
-            }
-
+            checkActivePremium();
             const data = getStorageData();
             const restantes = Math.max(0, MAX_DOWNLOADS - data.count);
             document.getElementById('cotaContador').innerText = `${restantes}/${MAX_DOWNLOADS}`;
         }
 
         function incrementCount() {
-            if (getUrlToken()) return;
             const data = getStorageData();
             localStorage.setItem('dl_count', (data.count + 1).toString());
             updateUI();
@@ -172,48 +140,31 @@
             e.preventDefault();
             const statusAlert = document.getElementById('statusAlert');
             const container = document.getElementById('resultsContainer');
-            const urlsText = document.getElementById('videoUrl').value.trim();
-            
-            const token = getUrlToken();
-            let qualityProfile = "mp3_128k";
-            if (token) {
-                qualityProfile = document.querySelector('input[name="qualityProfile"]:checked').value;
-            }
+            const videoUrl = document.getElementById('videoUrl').value.trim();
 
             statusAlert.className = "status-alert hidden";
             container.innerHTML = "";
 
-            const urlList = urlsText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
-            if (urlList.length === 0) return;
-
-            if (!token) {
-                const data = getStorageData();
-                if (data.count >= MAX_DOWNLOADS) {
-                    openPremiumModal();
-                    return;
-                }
-                if (urlList.length > 1) {
-                    openPremiumModal();
-                    return;
-                }
+            const data = getStorageData();
+            if (data.count >= MAX_DOWNLOADS) {
+                openPremiumModal();
+                return;
             }
 
             statusAlert.classList.remove('hidden');
             statusAlert.className = "status-alert status-blue";
-            statusAlert.innerText = token ? "PROCESSANDO EXTRAÇÃO MULTILINKS SIMULTÂNEA..." : "ESTABELECENDO CONEXÃO PROTEGIDA COM O SERVIDOR...";
+            statusAlert.innerText = "ESTABELECENDO CONEXÃO PROTEGIDA COM O SERVIDOR...";
 
-            const payloadItems = urlList.map(url => ({ url: url, quality_profile: qualityProfile }));
-            const payloadBody = { items: payloadItems };
-            if (token) payloadBody.token = token;
+            const payloadItems = [{ url: videoUrl, quality_profile: "mp3_128k" }];
 
             try {
                 const response = await fetch(`${API_BASE_URL}api/v1/download/processar`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payloadBody)
+                    body: JSON.stringify({ items: payloadItems })
                 });
 
-                if (response.status === 403 && !token) {
+                if (response.status === 403) {
                     localStorage.setItem('dl_count', MAX_DOWNLOADS.toString());
                     updateUI();
                     openPremiumModal();
@@ -225,26 +176,21 @@
                 const batchResult = await response.json();
                 
                 statusAlert.className = "status-alert status-green";
-                statusAlert.innerText = "ARQUIVOS CONVERTIDOS COM SUCESSO!";
+                statusAlert.innerText = "ARQUIVO CONVERTIDO COM SUCESSO!";
 
                 batchResult.results.forEach(result => {
-                    const itemCard = document.createElement('div');
-                    const isGreenTheme = token ? "border: 2px solid #10b981; box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);" : "border: 2px solid #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.1);";
-                    const thumbBorder = token ? "border: 1px solid rgba(16,185,129,0.3);" : "border: 1px solid rgba(220,38,38,0.3);";
-                    
                     if (result.status === "success") {
-                        itemCard.style = `text-align: left; background: #050508; padding: 20px; border-radius: 16px; margin-bottom: 20px; ${isGreenTheme}`;
+                        const itemCard = document.createElement('div');
+                        itemCard.style = "text-align: left; background: #050508; padding: 20px; border-radius: 16px; border: 2px solid #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.1);";
                         itemCard.innerHTML = `
-                            <img src="${result.thumbnail}" alt="Thumb" style="width: 100%; ${thumbBorder}" />
+                            <img src="${result.thumbnail}" alt="Thumb" style="width: 100%; border: 1px solid rgba(220,38,38,0.3);" />
                             <h3 style="font-size: 13px; margin: 12px 0; color: #f8fafc; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-family: sans-serif;">${result.title}</h3>
                             <a href="${result.download_url}" download="${result.title}.mp3" class="btn btn-green" style="text-decoration: none; display: block; text-align: center;">BAIXAR ARQUIVO AGORA</a>
                         `;
                         container.appendChild(itemCard);
                         incrementCount();
                     } else {
-                        itemCard.className = "status-alert status-red";
-                        itemCard.innerText = `FALHA NO LINK: ${result.url}`;
-                        container.appendChild(itemCard);
+                        throw new Error();
                     }
                 });
             } catch (error) {

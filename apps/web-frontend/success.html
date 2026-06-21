@@ -49,10 +49,11 @@
         }
 
         document.getElementById('accessPanelBtn').addEventListener('click', function() {
+            // Corrigido: Redireciona o usuário pagante direto para o painel isolado premium.html
             if (token) {
-                window.location.href = `index.html?token=${token}`;
+                window.location.href = `premium.html?token=${token}`;
             } else {
-                window.location.href = 'index.html';
+                window.location.href = 'premium.html';
             }
         });
     </script>
