@@ -70,7 +70,6 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # Configuração industrial blindada anti-captcha e emulação de Android nativo
     ydl_opts: dict[str, Any] = {
         "proxy": PROXY_URL,
         "quiet": True,
@@ -79,13 +78,15 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         "noplaylist": True,
         "ignoreerrors": True,
         "extract_flat": True,
-        # Força o yt-dlp a usar os extratores de clientes móveis que não exigem login
+        # Força o yt-dlp a imitar exclusivamente os aplicativos oficiais de iOS e TV para quebrar o PoToken
         "extractor_args": {
-            "youtube": {"client": ["android", "web_safari"], "skip": ["dash", "hls"]}
+            "youtube": {"client": ["ios", "tv"], "skip": ["dash", "hls"]}
         },
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Cache-Control": "max-age=0",
         },
     }
 
