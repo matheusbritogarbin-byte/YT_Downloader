@@ -70,6 +70,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
+    # Força a extração elástica textual para pular testes de codecs pesados no boot do processar
     ydl_opts: dict[str, Any] = {
         "proxy": PROXY_URL,
         "quiet": True,
@@ -263,10 +264,10 @@ async def stream_youtube_bytes(
 
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
-            # Com o FFmpeg injetado via nixpacks.toml, usamos a árvore elástica "ba*+bv*/best" sem travar
+            # CORREÇÃO DEFINITIVA: Força o formato elástico único "best" pré-renderizado, dispensando FFmpeg em disco
             opts = {
                 "proxy": PROXY_URL,
-                "format": "ba*+bv*/best",
+                "format": "best",
                 "quiet": True,
                 "no_warnings": True,
                 "ignoreerrors": True,
