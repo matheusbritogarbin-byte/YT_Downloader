@@ -58,8 +58,8 @@
                 </svg>
             </div>
             
-            <h2 id="modalTitle" style="font-size: 22px; font-weight: 900; margin: 0 0 8px 0; color: #ffffff;">LIMITE EXCEDIDO!</h2>
-            <p id="modalDescription" style="margin-bottom: 24px; color: #94a3b8; font-size: 13px;">A sua cota diária de 2 downloads gratuitos acabou. Faça o upgrade para baixar vídeos em 1080p e em lote.</p>
+            <h2 id="modalTitle" style="font-size: 22px; font-weight: 900; margin: 0 0 8px 0; color: #ffffff;">ENTRE PARA O PREMIUM!</h2>
+            <p id="modalDescription" style="margin-bottom: 24px; color: #94a3b8; font-size: 13px;">Faça o upgrade para baixar vídeos em 1080p e em lote.</p>
             
             <div class="price-tag">
                 <div>
@@ -202,7 +202,7 @@
 
         document.getElementById('buyPremiumBtn').addEventListener('click', async function() {
             try {
-                const response = await fetch(`${API_BASE_URL}payments/checkout/create-session`, {
+                const response = await fetch(`${API_BASE_URL}api/v1/payments/checkout/create-session`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
