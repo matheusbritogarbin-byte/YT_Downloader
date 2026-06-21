@@ -293,7 +293,7 @@ async def stream_youtube_bytes(
                             and f.get("acodec") != "none"
                         ]
                         if valid_streams:
-                            # CORRIGIDO: Acessa o índice [0] da lista antes de aplicar o .get()
+                            # CORRIGIDO: Acessa o primeiro elemento da lista diretamente usando colchetes
                             download_url_resolved = str(valid_streams[0].get("url", ""))
 
                     if not download_url_resolved:
