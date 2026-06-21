@@ -59,7 +59,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         except Exception:
             pass
 
-    # Removido o parametro "format" estático para evitar a exceção de codec indisponivel no extract_info
+    # Removido o parâmetro "format" fixo para evitar erro de codec indisponível no extract_info
     ydl_opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
@@ -84,13 +84,13 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             duration = info.get("duration")
             thumbnail = info.get("thumbnail")
 
-            # Varredura inteligente de streams direto da arvore de formatos extraida
+            # Seleção inteligente e segura das URLs de stream direto da lista de formatos extraída
             download_url = ""
-            formats: list[dict[str, Any]] = info.get("formats", [])
+            formats = info.get("formats", [])
 
             if formats:
                 if not is_premium:
-                    # Filtra formatos leves que contem apenas o audio para economizar processamento do plano gratuito
+                    # Filtra apenas por streams que contêm áudio puro para economizar processamento do plano gratuito
                     audio_formats = [
                         f
                         for f in formats
@@ -101,7 +101,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
                     else:
                         download_url = str(formats[0].get("url", ""))
                 else:
-                    # No plano Premium pega a melhor stream unificada ou o ultimo formato de maior bitrate disponível
+                    # No plano Premium pega a melhor stream unificada ou o último formato de maior qualidade
                     combined_formats = [
                         f
                         for f in formats
@@ -164,7 +164,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_list = str(raw_ip).split(",")
-        client_ip = str(ip_list[0]).strip()
+        client_ip = ip_list[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -181,7 +181,7 @@ async def process_youtube_video(
         if current_data and str(current_data).startswith("downloads:"):
             try:
                 parts = str(current_data).split("|")
-                count_part = str(parts[0]).split(":")
+                count_part = parts[0].split(":")
                 count = int(count_part[1])
                 if count >= 2:
                     raise HTTPException(
@@ -218,7 +218,7 @@ async def process_youtube_video(
             if current_data and str(current_data).startswith("downloads:"):
                 try:
                     parts = str(current_data).split("|")
-                    count_part = str(parts[0]).split(":")
+                    count_part = parts[0].split(":")
                     count = int(count_part[1]) + 1
                 except Exception:
                     count = 1
