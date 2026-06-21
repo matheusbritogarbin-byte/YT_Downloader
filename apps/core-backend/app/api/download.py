@@ -253,6 +253,62 @@ async def stream_youtube_bytes(
 
     url_real = urllib.parse.unquote_plus(url)
 
+    if "youtube.com" in url_real or "youtu.be" in url_real:
+        try:
+            # CORREÇÃO DEFINITIVA: Força formato elástico único progressivo para dispensar o uso de FFmpeg em disco
+            opts = {
+                "format": "best",
+                "quiet": True,
+                "no_warnings": True,
+                "ignoreerrors": True,
+                "youtube_include_dash_manifest": False,
+                "youtube_include_hls_manifest": False,
+                "allowed_extractors": ["youtube"],
+            }
+
+            cookie_path = "/tmp/youtube_cookies.txt"
+            if os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 0:
+                opts["cookiefile"] = cookie_path
+
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                res_dict = ydl.extract_info(url_real, download=False)
+                if res_dict:
+                    download_url_resolved = ""
+                    formats = res_dict.get("formats", [])
+                    if formats:
+                        if ext == "mp3":
+                            # Captura de forma elástica a stream progressiva estável contendo áudio funcional
+                            audio_streams = [
+                                f
+                                for f in formats
+                                if f.get("acodec") != "none" and f.get("url")
+                            ]
+                            download_url_resolved = (
+                                str(audio_streams[-1].get("url", ""))
+                                if audio_streams
+                                else str(formats[-1].get("url", ""))
+                            )
+                        else:
+                            # Captura de forma elástica a melhor stream progressiva de vídeo unificado
+                            video_streams = [
+                                f
+                                for f in formats
+                                if f.get("vcodec") != "none" and f.get("url")
+                            ]
+                            download_url_resolved = (
+                                str(video_streams[-1].get("url", ""))
+                                if video_streams
+                                else str(formats[-1].get("url", ""))
+                            )
+
+                    if not download_url_resolved:
+                        download_url_resolved = str(res_dict.get("url", ""))
+
+                    if download_url_resolved:
+                        url_real = download_url_resolved
+        except Exception:
+            pass
+
     async def generate_bytes() -> AsyncIterator[bytes]:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
