@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import urllib.parse
 from datetime import datetime
 from typing import Any, cast, AsyncIterator
 import httpx
@@ -67,7 +68,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         "ignoreerrors": True,
         "allowed_extractors": ["youtube"],
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, healthiest/Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
     }
 
@@ -226,7 +227,9 @@ async def process_youtube_video(
         orig_url = str(r.get("download_url", ""))
         title_limpo = str(r.get("title", "arquivo")).replace(" ", "_")
 
-        proxy_download_url = f"https://railway.app{orig_url}&title={title_limpo}"
+        url_codificada = urllib.parse.quote_plus(orig_url)
+
+        proxy_download_url = f"https://railway.app{url_codificada}&title={title_limpo}"
 
         results_list.append(
             DownloadResponseItem(
@@ -252,12 +255,14 @@ async def stream_youtube_bytes(url: str, title: str) -> StreamingResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
+    url_real = urllib.parse.unquote_plus(url)
+
     async def generate_bytes() -> AsyncIterator[bytes]:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
         async with httpx.AsyncClient(timeout=None) as client:
-            async with client.stream("GET", url, headers=headers) as response:
+            async with client.stream("GET", url_real, headers=headers) as response:
                 if response.status_code != 200:
                     yield b"Erro ao transmitir arquivo"
                     return
