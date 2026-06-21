@@ -63,14 +63,15 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # Configuração estável de fallback progressivo direto sem FFmpeg
+    # CORREÇÃO INDUSTRIAL ABSOLUTA: Remove filtros engessados de codecs no processamento textual de metadados
     ydl_opts: dict[str, Any] = {
-        "format": "ba/b",
+        "format": "best",
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "noplaylist": True,
         "ignoreerrors": True,
+        "extract_flat": True,
         "youtube_include_dash_manifest": False,
         "youtube_include_hls_manifest": False,
         "allowed_extractors": ["youtube"],
@@ -95,10 +96,11 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             duration = info.get("duration", 0)
             thumbnail = info.get("thumbnail", "")
 
-            download_url = str(info.get("url", ""))
-            formats = info.get("formats", [])
-            if not download_url and formats:
-                download_url = str(formats[-1].get("url", ""))
+            if not thumbnail and info.get("id"):
+                thumbnail = f"https://youtube.com{info.get('id')}/mqdefault.jpg"
+
+            video_id = info.get("id", "video_id")
+            download_url = f"https://youtube.com{video_id}"
 
             return {
                 "title": str(title),
@@ -148,9 +150,8 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        ip_list = str(raw_ip).split(",")
-        # Correção Pylance: Captura o primeiro elemento string do IP antes do strip
-        client_ip = ip_list[0].strip()
+        ip_parts = str(raw_ip).split(",")
+        client_ip = str(ip_parts[0]).strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -167,8 +168,7 @@ async def process_youtube_video(
         if current_data and str(current_data).startswith("downloads:"):
             try:
                 parts = str(current_data).split("|")
-                # Correção Pylance: Extrai o elemento string da lista antes de aplicar o split secundário
-                count_part = parts[0].split(":")
+                count_part = str(parts[0]).split(":")
                 count = int(count_part[1])
                 if count >= 2:
                     raise HTTPException(
@@ -205,7 +205,7 @@ async def process_youtube_video(
             if current_data and str(current_data).startswith("downloads:"):
                 try:
                     parts = str(current_data).split("|")
-                    count_part = parts[0].split(":")
+                    count_part = str(parts[0]).split(":")
                     count = int(count_part[1]) + 1
                 except Exception:
                     count = 1
@@ -281,7 +281,7 @@ async def stream_youtube_bytes(
                             audio_streams = [
                                 f
                                 for f in formats
-                                if f.get("acodec") != "none" and f.get("url")
+                                if f.get("vcodec") == "none" and f.get("url")
                             ]
                             download_url_resolved = (
                                 str(audio_streams[-1].get("url", ""))
