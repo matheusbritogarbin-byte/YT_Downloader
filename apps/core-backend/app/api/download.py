@@ -59,8 +59,9 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
         except Exception:
             pass
 
-    # Removido o parâmetro "format" fixo para evitar erro de codec indisponível no extract_info
+    # Força o formato "best" para obter links diretos pre-renderizados sem exigir o ffmpeg no servidor
     ydl_opts: dict[str, Any] = {
+        "format": "best",
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
@@ -84,36 +85,8 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             duration = info.get("duration")
             thumbnail = info.get("thumbnail")
 
-            # Seleção inteligente e segura das URLs de stream direto da lista de formatos extraída
-            download_url = ""
-            formats = info.get("formats", [])
-
-            if formats:
-                if not is_premium:
-                    # Filtra apenas por streams que contêm áudio puro para economizar processamento do plano gratuito
-                    audio_formats = [
-                        f
-                        for f in formats
-                        if f.get("vcodec") == "none" and f.get("acodec") != "none"
-                    ]
-                    if audio_formats:
-                        download_url = str(audio_formats[0].get("url", ""))
-                    else:
-                        download_url = str(formats[0].get("url", ""))
-                else:
-                    # No plano Premium pega a melhor stream unificada ou o último formato de maior qualidade
-                    combined_formats = [
-                        f
-                        for f in formats
-                        if f.get("vcodec") != "none" and f.get("acodec") != "none"
-                    ]
-                    if combined_formats:
-                        download_url = str(combined_formats[-1].get("url", ""))
-                    else:
-                        download_url = str(formats[-1].get("url", ""))
-
-            if not download_url:
-                download_url = str(info.get("url", ""))
+            # Captura a URL direta e limpa do formato "best" entregue pelo Google Video
+            download_url = str(info.get("url", ""))
 
             return {
                 "title": str(title) if title is not None else "Vídeo Sem Título",
