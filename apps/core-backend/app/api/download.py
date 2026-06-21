@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import subprocess
 import urllib.parse
 from datetime import datetime
 from typing import Any, cast, AsyncIterator
@@ -56,19 +57,10 @@ class BatchDownloadResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Opções unificadas do yt-dlp  (evita duplicação entre /processar e /stream)
+# Opções base do yt-dlp (partilhadas entre rotas)
 # ---------------------------------------------------------------------------
-def _build_ydl_opts(download_mode: bool = False) -> dict[str, Any]:
-    """
-    Constrói um dicionário de opções consistente para todas as chamadas ao yt-dlp.
-
-    Args:
-        download_mode:
-            ``True``  → desliga *extract_flat* para obter a árvore completa de formatos
-                       (necessário no /stream para extrair URL real de stream).
-            ``False`` → mantém *extract_flat* ativo (apenas metadados textuais, usado no
-                       /processar para gerar cards rapidamente).
-    """
+def _build_ydl_opts() -> dict[str, Any]:
+    """Constrói opções base — APENAS para metadados (extract_flat)."""
     cookie_path = "/tmp/youtube_cookies.txt"
     cookies_content = os.getenv("YOUTUBE_COOKIES_DATA", "")
 
@@ -87,56 +79,32 @@ def _build_ydl_opts(download_mode: bool = False) -> dict[str, Any]:
         "noplaylist": True,
         "ignoreerrors": True,
         "allowed_extractors": ["youtube"],
+        "extract_flat": True,  # APENAS metadados — sem validação de formatos
         "youtube_include_dash_manifest": False,
         "youtube_include_hls_manifest": False,
-        # --- Bloqueio anti-PoToken: emular apps nativos iOS + TV ---
-        "extractor_args": {
-            "youtube": {
-                "client": ["ios", "tv"],
-                "skip": ["dash", "hls"],
-            }
-        },
+        "extractor_args": {"youtube": {"client": ["android"]}},
         "http_headers": {
             "User-Agent": (
-                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) "
-                "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 "
-                "Mobile/15E148 Safari/604.1"
+                "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro Build/UD1A.230803.041; wv) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 "
+                "Chrome/120.0.6099.230 Mobile Safari/537.36"
             ),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Cache-Control": "max-age=0",
         },
     }
 
     if os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 0:
         opts["cookiefile"] = cookie_path
 
-    if not download_mode:
-        # --- Apenas metadados (cards) ----------------------------------------
-        opts["extract_flat"] = True
-    # Em download_mode NÃO definimos "format" — faremos a seleção manualmente
-    # a partir da lista completa de formats[] (evita erro de formato + FFmpeg).
     return opts
 
 
 # ---------------------------------------------------------------------------
-# Selecção manual de formatos (SEM FFmpeg)
+# Selecção manual de formatos (apenas para o caso de fallback da API Python)
 # ---------------------------------------------------------------------------
 def _extrair_url_stream(info: dict[str, Any], ext: str) -> str | None:
-    """
-    Varre a árvore ``info["formats"]`` e retorna a URL directa do Google Video
-    mais adequada para a extensão solicitada, **sem depender do seletor automático
-    do yt-dlp** (que exige FFmpeg para fundir ``bestvideo+bestaudio``).
-
-    Estratégia:
-        * ``mp4`` → formatos **progressivos** (vcodec + acodec no mesmo ficheiro),
-                    ordenados por altura descendente.
-        * ``mp3``/áudio → formatos **só áudio** (vcodec == "none"), preferindo
-                          ``m4a`` (AAC) por compatibilidade nativa com browsers.
-    """
     formats: list[dict[str, Any]] = info.get("formats") or []
 
-    # 1. URL directa no topo do dict (raro, mas acontece)
     direct_url = info.get("url")
     if direct_url and isinstance(direct_url, str) and direct_url.startswith("http"):
         return direct_url
@@ -148,62 +116,59 @@ def _extrair_url_stream(info: dict[str, Any], ext: str) -> str | None:
         u = f.get("url")
         return bool(u) and isinstance(u, str) and u.startswith("http")
 
-    if ext == "mp4":
-        # --- Progressivo MP4 (video + áudio juntos, sem FFmpeg) -------------
-        candidates = [
-            f
-            for f in formats
-            if _tem_url(f)
-            and f.get("vcodec") not in (None, "none")
-            and f.get("acodec") not in (None, "none")
-            and f.get("ext") == "mp4"
-        ]
-        candidates.sort(key=lambda f: f.get("height", 0) or 0, reverse=True)
-        if candidates:
-            return str(candidates[0]["url"])
+    def _tem_audio(f: dict[str, Any]) -> bool:
+        return f.get("acodec") not in (None, "none")
 
-        # Fallback: qualquer progressivo (qualquer extensão)
-        candidates = [
-            f
-            for f in formats
-            if _tem_url(f)
-            and f.get("vcodec") not in (None, "none")
-            and f.get("acodec") not in (None, "none")
-        ]
-        candidates.sort(key=lambda f: f.get("height", 0) or 0, reverse=True)
-        if candidates:
-            return str(candidates[0]["url"])
-
-    else:
-        # --- Áudio (mp3 / m4a) ----------------------------------------------
-        candidates = [
-            f
-            for f in formats
-            if _tem_url(f)
-            and (f.get("vcodec") or "none") in ("none", None)
-            and f.get("acodec") not in (None, "none")
-        ]
-        # Preferir m4a (AAC) → bitrate alto
-        candidates.sort(
-            key=lambda f: (
-                0 if f.get("ext") == "m4a" else 1,
-                -(f.get("abr", 0) or 0),
-            )
+    def _tem_video_e_audio(f: dict[str, Any]) -> bool:
+        return f.get("vcodec") not in (None, "none") and f.get("acodec") not in (
+            None,
+            "none",
         )
-        if candidates:
-            return str(candidates[0]["url"])
 
-        # Fallback extremo: qualquer formato só áudio
+    if ext == "mp4":
+        # Progressivo MP4
         candidates = [
             f
             for f in formats
-            if _tem_url(f) and (f.get("vcodec") or "none") in ("none", None)
+            if _tem_url(f) and _tem_video_e_audio(f) and f.get("ext") == "mp4"
         ]
-        candidates.sort(key=lambda f: -(f.get("abr", 0) or 0))
+        candidates.sort(key=lambda f: f.get("height", 0) or 0, reverse=True)
+        if candidates:
+            return str(candidates[0]["url"])
+        candidates = [f for f in formats if _tem_url(f) and _tem_video_e_audio(f)]
+        candidates.sort(key=lambda f: f.get("height", 0) or 0, reverse=True)
         if candidates:
             return str(candidates[0]["url"])
 
-    # Último recurso: qualquer formato que tenha URL
+    # Áudio dedicado
+    candidates = [
+        f
+        for f in formats
+        if _tem_url(f)
+        and (f.get("vcodec") or "none") in ("none", None)
+        and _tem_audio(f)
+    ]
+    candidates.sort(
+        key=lambda f: (
+            0 if f.get("ext") in ("m4a", "mp4") else 1,
+            -(f.get("abr", 0) or 0),
+        )
+    )
+    if candidates:
+        return str(candidates[0]["url"])
+
+    # Qualquer formato com áudio
+    candidates = [f for f in formats if _tem_url(f) and _tem_audio(f)]
+    candidates.sort(
+        key=lambda f: (
+            0 if (f.get("vcodec") or "none") in ("none", None) else 1,
+            -(f.get("abr", 0) or 0),
+        )
+    )
+    if candidates:
+        return str(candidates[0]["url"])
+
+    # Último recurso
     for f in formats:
         if _tem_url(f):
             return str(f["url"])
@@ -212,68 +177,106 @@ def _extrair_url_stream(info: dict[str, Any], ext: str) -> str | None:
 
 
 def _determinar_ext_real(download_url: str, ext_solicitado: str) -> str:
-    """
-    Ajusta a extensão do ficheiro para corresponder ao que realmente vai ser
-    servido (já que o yt-dlp pode devolver .webm mesmo quando pedimos mp3).
-    """
     if ext_solicitado != "mp3":
         return ext_solicitado
-    # Para áudio, se a URL terminar em .webm, servimos como webm
     path = urllib.parse.urlparse(download_url).path.lower()
     if path.endswith(".webm"):
         return "webm"
     if path.endswith(".m4a"):
         return "m4a"
-    # Padrão: mantém mp3 (o navegador tenta reproduzir, pode falhar)
     return ext_solicitado
+
+
+# ---------------------------------------------------------------------------
+# Subprocess yt-dlp --get-url (contorna validação interna da API Python)
+# ---------------------------------------------------------------------------
+def _resolver_url_via_subprocess(url: str) -> str | None:
+    """
+    Usa `yt-dlp --get-url --format "worst"` via subprocess para obter a URL
+    real da stream do Google Video.
+
+    O subprocess contorna a validação interna de formatos que a API Python
+    do yt-dlp faz e que dispara o erro "Requested format is not available"
+    para conteúdo protegido.
+    """
+    cookie_path = "/tmp/youtube_cookies.txt"
+    cookie_arg = (
+        f'--cookiefile "{cookie_path}"'
+        if os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 0
+        else ""
+    )
+
+    cmd = (
+        f"yt-dlp --quiet --no-warnings "
+        f'--proxy "{PROXY_URL}" '
+        f'--format "worst" '
+        f'--extractor-args "youtube:client=android" '
+        f"--get-url "
+        f"{cookie_arg} "
+        f'"{url}"'
+    )
+
+    try:
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        stdout = result.stdout.strip()
+        if stdout and stdout.startswith("http"):
+            return stdout
+    except Exception:
+        pass
+    return None
 
 
 # ---------------------------------------------------------------------------
 # Extração de metadados (usada pelo /processar)
 # ---------------------------------------------------------------------------
 def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
+    """
+    Extrai APENAS metadados textuais via extract_flat=True.
+    A URL de stream NÃO é resolvida aqui — isso acontece no GET /stream
+    via subprocess yt-dlp --get-url, que contorna a validação de formatos.
+    """
     url_limpa = url
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    ydl_opts = _build_ydl_opts(download_mode=False)
+    opts = _build_ydl_opts()
+
+    title = "Vídeo Sem Título"
+    duration = 0
+    thumbnail = ""
 
     try:
-        with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+        with yt_dlp.YoutubeDL(cast(Any, opts)) as ydl:
             extracted = ydl.extract_info(url_limpa, download=False)
-            if not extracted:
-                raise ValueError(
-                    "O YouTube recusou o fornecimento dos metadados textuais "
-                    "para este link."
-                )
+            if extracted:
+                info = cast(dict[str, Any], extracted)
+                title = info.get("title", title)
+                duration = info.get("duration", duration)
+                thumbnail = info.get("thumbnail", "")
+                video_id = info.get("id", "")
 
-            info = cast(dict[str, Any], extracted)
-            title = info.get("title", "Vídeo Sem Título")
-            duration = info.get("duration", 0)
-            thumbnail = info.get("thumbnail", "")
+                if not thumbnail and video_id:
+                    thumbnail = f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
+    except Exception:
+        pass
 
-            if not thumbnail and info.get("id"):
-                thumbnail = f"https://i.ytimg.com/vi/{info.get('id')}/mqdefault.jpg"
-
-            # Apenas metadados — a URL de download real será resolvida
-            # posteriormente pelo /stream quando o utilizador clicar.
-            return {
-                "title": str(title),
-                "video_url": str(url_limpa),  # URL *original* do YouTube
-                "duration": int(duration) if isinstance(duration, (int, float)) else 0,
-                "thumbnail": str(thumbnail),
-                "status": "success",
-                "error_message": None,
-            }
-    except Exception as e:
-        return {
-            "title": "Erro",
-            "video_url": "",
-            "duration": 0,
-            "thumbnail": "",
-            "status": "failed",
-            "error_message": str(e),
-        }
+    return {
+        "title": str(title),
+        "download_url": str(url_limpa),  # A stream real será resolvida no /stream
+        "video_url": str(url_limpa),
+        "duration": int(duration) if isinstance(duration, (int, float)) else 0,
+        "thumbnail": str(thumbnail),
+        "status": "success" if title != "Vídeo Sem Título" else "failed",
+        "error_message": (
+            None if title != "Vídeo Sem Título" else "Falha ao obter título do vídeo."
+        ),
+    }
 
 
 async def processar_item_async(
@@ -288,7 +291,7 @@ async def processar_item_async(
 
 
 # ---------------------------------------------------------------------------
-# POST /processar  —  extrai metadados e devolve links para /stream
+# POST /processar  —  extrai metadados e devolve link para /stream
 # ---------------------------------------------------------------------------
 @router.post(
     "/processar",
@@ -356,7 +359,7 @@ async def process_youtube_video(
 
     # Construir URL base do próprio servidor para montar links do /stream
     try:
-        scheme = fastapi_request.url.scheme  # http / https
+        scheme = fastapi_request.url.scheme
         host = fastapi_request.url.hostname
         port = fastapi_request.url.port
         base_url = f"{scheme}://{host}"
@@ -388,7 +391,7 @@ async def process_youtube_video(
             await redis_client.set(redis_key, f"downloads:{count}|data:{hoje}")
             await redis_client.expire(redis_key, 86400)
 
-        # A URL real do YouTube é passada como parâmetro para o /stream
+        # A stream será resolvida no /stream
         video_url = str(r.get("video_url", ""))
         title_limpo = str(r.get("title", "arquivo")).replace(" ", "_")
         url_codificada = urllib.parse.quote(video_url)
@@ -398,7 +401,6 @@ async def process_youtube_video(
             if item.url == r.get("url") and "mp4" in item.quality_profile:
                 extensao = "mp4"
 
-        # Link funcional que aponta para o nosso /stream
         download_url = (
             f"{stream_endpoint}?url={url_codificada}"
             f"&title={title_limpo}&ext={extensao}"
@@ -424,7 +426,7 @@ async def process_youtube_video(
 
 
 # ---------------------------------------------------------------------------
-# GET /stream  —  resolve a URL real do Google Video e faz stream
+# GET /stream  —  resolve a stream real via subprocess e faz proxy
 # ---------------------------------------------------------------------------
 @router.get("/stream")
 async def stream_youtube_bytes(
@@ -435,43 +437,50 @@ async def stream_youtube_bytes(
 
     url_real = urllib.parse.unquote_plus(url)
 
-    # --- 1. Extrair informação completa com as mesmas opções anti-bloqueio --
-    ydl_opts = _build_ydl_opts(download_mode=True)
+    is_youtube_url = "youtube.com" in url_real or "youtu.be" in url_real
 
-    download_url_resolved: str | None = None
-    try:
-        with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-            info = ydl.extract_info(url_real, download=False)
-            if not info:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Falha ao extrair informações do vídeo para stream.",
-                )
+    download_url_resolved = url_real
 
-            info_dict = cast(dict[str, Any], info)
-            download_url_resolved = _extrair_url_stream(info_dict, ext)
+    if is_youtube_url:
+        # --- TÁCTICA PRINCIPAL: subprocess yt-dlp --get-url ---
+        # Contorna COMPLETAMENTE a validação interna de formatos que a API
+        # Python do yt-dlp faz e que dispara:
+        #   ERROR: [youtube] VIDEO_ID: Requested format is not available
+        resolved = _resolver_url_via_subprocess(url_real)
+        if resolved:
+            download_url_resolved = resolved
+        else:
+            # Fallback: yt-dlp Python API com opções mínimas
+            try:
+                fallback_opts = _build_ydl_opts()
+                fallback_opts.pop("extract_flat", None)
+                fallback_opts["youtube_include_dash_manifest"] = True
+                fallback_opts["youtube_include_hls_manifest"] = True
+                fallback_opts["ignore_no_formats_error"] = True
+                fallback_opts["no_youtube_format_sort"] = True
+                fallback_opts["format"] = "worst"
+                with yt_dlp.YoutubeDL(cast(Any, fallback_opts)) as ydl:
+                    info = ydl.extract_info(url_real, download=False)
+                    if info:
+                        resolved = _extrair_url_stream(cast(dict[str, Any], info), ext)
+                        if resolved:
+                            download_url_resolved = resolved
+            except Exception:
+                pass
 
-            if not download_url_resolved:
-                raise HTTPException(
-                    status_code=500,
-                    detail=(
-                        "Nenhuma stream directa encontrada para este vídeo. "
-                        "O formato solicitado pode não estar disponível para "
-                        "este conteúdo (ex.: protegido por restrições regionais)."
-                    ),
-                )
-    except HTTPException:
-        raise
-    except Exception as exc:
+    # Verificar se ainda temos URL do YouTube (stream não resolvida)
+    if "youtube.com" in download_url_resolved or "youtu.be" in download_url_resolved:
         raise HTTPException(
             status_code=500,
-            detail=f"Erro ao resolver stream no YouTube: {str(exc)}",
+            detail=(
+                "Não foi possível obter a stream directa deste vídeo. "
+                "O conteúdo pode estar protegido por restrições regionais "
+                "ou de copyright. Tente novamente mais tarde."
+            ),
         )
 
-    # --- 2. Ajustar extensão real (ex.: .webm em vez de .mp3) -------------
     ext_real = _determinar_ext_real(download_url_resolved, ext)
 
-    # --- 3. Stream via HTTPX -----------------------------------------------
     async def generate_bytes() -> AsyncIterator[bytes]:
         headers = {
             "User-Agent": (
