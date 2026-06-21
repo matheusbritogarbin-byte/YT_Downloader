@@ -6,6 +6,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+import redis.asyncio as aioredis
 import yt_dlp
 from app.middleware.rate_limiter import verificar_limite_requisicoes
 
@@ -14,6 +15,10 @@ router = APIRouter(prefix="/download", tags=["Media Downloader"])
 YOUTUBE_REGEX = re.compile(r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.+$")
 
 ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3", "100.64.0.4"]
+
+redis_client: Any = cast(Any, aioredis).from_url(
+    os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True
+)
 
 
 class DownloadItemRequest(BaseModel):
@@ -81,9 +86,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
                 formats = info.get("formats", [])
                 if formats:
                     download_url = (
-                        formats[0].get("url")
-                        if not is_premium
-                        else formats[-1].get("url")
+                        formats.get("url") if not is_premium else formats[-1].get("url")
                     )
 
             return {
@@ -141,11 +144,38 @@ async def process_youtube_video(
 
     is_premium = client_ip in ADMIN_IPS
 
+    if not is_premium:
+        redis_key = f"quota:{client_ip}"
+        current_count = await redis_client.get(redis_key)
+        if current_count is not None and int(current_count) >= 2:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Limite diário excedido no servidor. Adquira o Plano Premium para downloads ilimitados.",
+            )
+
+    if not is_premium and len(request.items) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Downloads simultâneos são exclusivos do Plano Premium.",
+        )
+
+    for item in request.items:
+        if not YOUTUBE_REGEX.match(item.url.strip()):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"URL inválida ou não suportada: {item.url}",
+            )
+
     tasks = [processar_item_async(item, is_premium) for item in request.items]
     raw_results = await asyncio.gather(*tasks)
 
     results_list: list[DownloadResponseItem] = []
     for r in raw_results:
+        if r.get("status") == "success" and not is_premium:
+            redis_key = f"quota:{client_ip}"
+            await redis_client.incr(redis_key)
+            await redis_client.expire(redis_key, 86400)
+
         orig_url = str(r.get("download_url", ""))
         title_limpo = str(r.get("title", "arquivo")).replace(" ", "_")
 
