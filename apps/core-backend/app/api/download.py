@@ -264,7 +264,6 @@ async def stream_youtube_bytes(
 
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
-            # Omitida qualquer restrição rígida de formato para forçar a Google a entregar links progressivos leves sem FFmpeg
             opts = {
                 "proxy": PROXY_URL,
                 "quiet": True,
@@ -286,7 +285,6 @@ async def stream_youtube_bytes(
                     formats = res_dict.get("formats", [])
 
                     if formats:
-                        # Varredura inteligente de streams progressivas prontas contendo faixas integradas
                         valid_streams = [
                             f
                             for f in formats
@@ -295,6 +293,7 @@ async def stream_youtube_bytes(
                             and f.get("acodec") != "none"
                         ]
                         if valid_streams:
+                            # CORRIGIDO: Acessa o índice [0] da lista antes de aplicar o .get()
                             download_url_resolved = str(valid_streams[0].get("url", ""))
 
                     if not download_url_resolved:
