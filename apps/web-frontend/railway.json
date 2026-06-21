@@ -1,0 +1,9 @@
+{
+    "$schema": "https://railway.app",
+    "build": {
+        "builder": "NIXPACKS"
+    },
+    "deploy": {
+        "startCommand": "npx serve -l 80"
+    }
+}
