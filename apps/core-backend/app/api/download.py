@@ -63,7 +63,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # RESGATE DEFINITIVO: Força o formato 'best' pré-renderizado e desativa DASH para pular dependência de FFmpeg
+    # Força o formato elástico pré-combinado único do Google Video, ignorando processamento de FFmpeg
     ydl_opts: dict[str, Any] = {
         "format": "best",
         "quiet": True,
@@ -87,7 +87,7 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             extracted = ydl.extract_info(url_limpa, download=False)
             if not extracted:
                 raise ValueError(
-                    "O YouTube negou o fornecimento da stream direta para este link."
+                    "O servidor do YouTube negou a extração direta de fluxos de mídia."
                 )
 
             info = cast(dict[str, Any], extracted)
@@ -95,10 +95,8 @@ def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
             duration = info.get("duration", 0)
             thumbnail = info.get("thumbnail", "")
 
-            # Extrai o link de streaming progressivo puro e real gerado pela Google
             download_url = str(info.get("url", ""))
             formats = info.get("formats", [])
-
             if not download_url and formats:
                 download_url = str(formats[-1].get("url", ""))
 
@@ -150,8 +148,8 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        ip_parts = str(raw_ip).split(",")
-        client_ip = str(ip_parts[0]).strip()
+        ip_list = str(raw_ip).split(",")
+        client_ip = ip_list[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -168,7 +166,7 @@ async def process_youtube_video(
         if current_data and str(current_data).startswith("downloads:"):
             try:
                 parts = str(current_data).split("|")
-                count_part = str(parts[0]).split(":")
+                count_part = parts[0].split(":")
                 count = int(count_part[1])
                 if count >= 2:
                     raise HTTPException(
@@ -205,7 +203,7 @@ async def process_youtube_video(
             if current_data and str(current_data).startswith("downloads:"):
                 try:
                     parts = str(current_data).split("|")
-                    count_part = str(parts[0]).split(":")
+                    count_part = parts[0].split(":")
                     count = int(count_part[1]) + 1
                 except Exception:
                     count = 1
