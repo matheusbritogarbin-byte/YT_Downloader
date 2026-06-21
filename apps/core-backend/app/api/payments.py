@@ -35,8 +35,8 @@ async def create_checkout_session(request: Request) -> dict[str, str]:
                     "quantity": 1,
                 }
             ],
-            success_url=f"{base_url}/success.html?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{base_url}/cancel.html",
+            success_url=f"{base_url}/apps/web-frontend/success.html?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{base_url}/apps/web-frontend/cancel.html",
             customer_email=user_email,
             metadata={"user_email": user_email},
         )
