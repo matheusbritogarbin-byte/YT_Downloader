@@ -63,13 +63,14 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # Configuração elástica limpa sem o parâmetro "format" fixo para evitar exceções de codecs
+    # Injeta a regra elástica padrão que extrai tabelas prontas sem simular em disco
     ydl_opts: dict[str, Any] = {
+        "format": "ba*+bv*/best",
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "noplaylist": True,
-        "ignoreerrors": True,
+        "ignoreerrors": "only_download",
         "allowed_extractors": ["youtube"],
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -83,14 +84,15 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
             extracted = ydl.extract_info(url_limpa, download=False)
             if not extracted:
-                raise ValueError("O YouTube negou o fornecimento de links de mídia.")
+                raise ValueError(
+                    "O YouTube recusou o fornecimento dos metadados deste link."
+                )
 
             info = cast(dict[str, Any], extracted)
             title = info.get("title", "Vídeo Sem Título")
             duration = info.get("duration", 0)
             thumbnail = info.get("thumbnail", "")
 
-            # Varredura manual inteligente de links estáveis pré-renderizados direto da Google
             download_url = ""
             formats = info.get("formats", [])
 
@@ -113,8 +115,8 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
                         and f.get("acodec") != "none"
                         and f.get("url")
                     ]
-                    if audio_streams:
-                        download_url = str(audio_streams[-1].get("url", ""))
+                    if audio_formats := audio_streams:
+                        download_url = str(audio_formats[-1].get("url", ""))
 
             if not download_url and formats:
                 download_url = str(formats[-1].get("url", ""))
@@ -171,7 +173,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_parts = str(raw_ip).split(",")
-        client_ip = str(ip_parts[0]).strip()
+        client_ip = ip_parts[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -188,7 +190,7 @@ async def process_youtube_video(
         if current_data and str(current_data).startswith("downloads:"):
             try:
                 parts = str(current_data).split("|")
-                count_part = str(parts[0]).split(":")
+                count_part = parts[0].split(":")
                 count = int(count_part[1])
                 if count >= 2:
                     raise HTTPException(
@@ -225,7 +227,7 @@ async def process_youtube_video(
             if current_data and str(current_data).startswith("downloads:"):
                 try:
                     parts = str(current_data).split("|")
-                    count_part = str(parts[0]).split(":")
+                    count_part = parts[0].split(":")
                     count = int(count_part[1]) + 1
                 except Exception:
                     count = 1
