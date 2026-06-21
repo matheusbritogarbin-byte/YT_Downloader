@@ -23,6 +23,13 @@ ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3", "100.64.0.4"]
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 redis_client: Any = cast(Any, aioredis).from_url(redis_url, decode_responses=True)
 
+user = "lrxlolkp"
+senha = "nr93zkbnhywf"
+ip = "45.38.107.97"
+porta = "6014"
+
+PROXY_URL = f"http://{user}:{senha}@{ip}:{porta}"
+
 
 class DownloadItemRequest(BaseModel):
     url: str
@@ -63,8 +70,9 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # CORREÇÃO INDUSTRIAL ABSOLUTA: Remove a chave format engessada do boot do processar
+    # Injetada a flag "proxy" residencial para mascarar as buscas do data center da Railway
     ydl_opts: dict[str, Any] = {
+        "proxy": PROXY_URL,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
@@ -87,7 +95,7 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
             extracted = ydl.extract_info(url_limpa, download=False)
             if not extracted:
                 raise ValueError(
-                    "O YouTube recusou o fornecimento dos metadados deste link."
+                    "O YouTube recusou o fornecimento dos metadados através do canal seguro."
                 )
 
             info = cast(dict[str, Any], extracted)
@@ -98,8 +106,6 @@ def extrair_midia_com_seguranca(url: str, quality_profile: str) -> dict[str, Any
             if not thumbnail and info.get("id"):
                 thumbnail = f"https://youtube.com{info.get('id')}/mqdefault.jpg"
 
-            # Como o extract_flat extrai metadados puros, enviamos o link higienizado para o proxy
-            # A resolução pesada da stream real acontecerá de forma isolada e sob demanda na rota /stream
             video_id = info.get("id", "video_id")
             download_url = f"https://youtube.com{video_id}"
 
@@ -152,7 +158,7 @@ async def process_youtube_video(
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
         ip_parts = str(raw_ip).split(",")
-        client_ip = str(ip_parts[0]).strip()
+        client_ip = ip_parts[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -169,7 +175,7 @@ async def process_youtube_video(
         if current_data and str(current_data).startswith("downloads:"):
             try:
                 parts = str(current_data).split("|")
-                count_part = str(parts[0]).split(":")
+                count_part = parts[0].split(":")
                 count = int(count_part[1])
                 if count >= 2:
                     raise HTTPException(
@@ -206,7 +212,7 @@ async def process_youtube_video(
             if current_data and str(current_data).startswith("downloads:"):
                 try:
                     parts = str(current_data).split("|")
-                    count_part = str(parts[0]).split(":")
+                    count_part = parts[0].split(":")
                     count = int(count_part[1]) + 1
                 except Exception:
                     count = 1
@@ -258,8 +264,9 @@ async def stream_youtube_bytes(
 
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
-            # Resolvedor do stream utiliza o formato elástico "best" sob demanda limpando qualquer dependência do FFmpeg
+            # Resolvedor do stream também configurado com o túnel proxy residencial estável
             opts = {
+                "proxy": PROXY_URL,
                 "format": "best",
                 "quiet": True,
                 "no_warnings": True,
