@@ -160,8 +160,7 @@ async def process_youtube_video(
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
         raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        ip_list = str(raw_ip).split(",")
-        client_ip = str(ip_list[0]).strip()
+        client_ip = str(raw_ip).split(",")[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -229,7 +228,6 @@ async def process_youtube_video(
 
         url_codificada = urllib.parse.quote_plus(orig_url)
 
-        # LINK DEFINITIVO DE PRODUÇÃO CORRIGIDO
         proxy_download_url = f"https://railway.app{url_codificada}&title={title_limpo}"
 
         results_list.append(
