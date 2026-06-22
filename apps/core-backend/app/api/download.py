@@ -1,13 +1,14 @@
 import asyncio
 import os
 import re
+import urllib.parse
 from datetime import datetime
 from typing import Any, cast
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 import redis.asyncio as aioredis
-import yt_dlp
 from app.middleware.rate_limiter import verificar_limite_requisicoes
 
 router = APIRouter(prefix="/download", tags=["Media Downloader"])
@@ -47,55 +48,55 @@ class BatchDownloadResponse(BaseModel):
 
 def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
     """
-    Extrai metadados + URL directa do Google Video usando o IP nativo
-    do Railway (client-side). SEM proxy, SEM extract_flat.
+    Extrai metadados via oEmbed oficial do YouTube.
+    SEM yt-dlp, SEM proxy, SEM bloqueios de CAPTCHA.
+    Usa a API oficial https://www.youtube.com/oembed.
     """
     url_limpa = url
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    ydl_opts: dict[str, Any] = {
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "ignoreerrors": True,
-        "extract_flat": True,
-        "allowed_extractors": ["youtube"],
-    }
-
     title = "Vídeo Sem Título"
     duration = 0
     thumbnail = ""
+    video_id = ""
     video_url = url_limpa
+    data: dict[str, Any] = {}
+
+    oembed_url = f"https://www.youtube.com/oembed?url={urllib.parse.quote(url_limpa)}&format=json"
 
     try:
-        with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-            extracted = ydl.extract_info(url_limpa, download=False)
-            if extracted:
-                info = cast(dict[str, Any], extracted)
-                title = info.get("title", title)
-                duration = info.get("duration", duration)
-                thumbnail = info.get("thumbnail", "")
-                video_id = info.get("id", "")
-
-                if not thumbnail and video_id:
-                    thumbnail = f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
-
-                if video_id:
-                    video_url = f"https://www.youtube.com/watch?v={video_id}"
-
+        with httpx.Client(timeout=5.0) as client:
+            resp = client.get(oembed_url)
+            if resp.status_code == 200:
+                data = resp.json()
+                title = data.get("title", title)
+                thumbnail = data.get("thumbnail_url", "")
     except Exception:
         pass
+
+    match = re.search(
+        r"(?:v=|\/shorts\/|\/embed\/|\/v\/|youtu\.be\/|\/watch\?v=)"
+        r"([a-zA-Z0-9_-]{11})",
+        url_limpa,
+    )
+    if match:
+        video_id = match.group(1)
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+    if video_id:
+        thumbnail = (
+            data.get("thumbnail_url")
+            or f"https://youtube.com{video_id}/maxresdefault.jpg"
+        )
 
     return {
         "title": str(title),
         "download_url": video_url,
-        "duration": int(duration) if isinstance(duration, (int, float)) else 0,
+        "duration": duration,
         "thumbnail": str(thumbnail),
-        "status": "success" if title != "Vídeo Sem Título" else "failed",
-        "error_message": (
-            None if title != "Vídeo Sem Título" else "Falha ao obter metadados."
-        ),
+        "status": "success" if video_id else "failed",
+        "error_message": None if video_id else "Falha ao obter metadados via oEmbed.",
     }
 
 
@@ -214,50 +215,15 @@ async def process_youtube_video(
 @router.get("/stream")
 async def stream_youtube_bytes(url: str, title: str = "video", ext: str = "mp3"):
     """
-    Rota simplificada: redirecciona directamente para a URL real
-    do Google Video. O download é feito pelo browser do cliente
-    usando o IP residencial dele.
+    Rota legada: redirect simples.
+    O download é processado pelo Cobalt Tools no front-end.
     """
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
     url_real = url
-
-    if "youtube.com" in url_real or "youtu.be" in url_real:
-        try:
-            ydl_opts: dict[str, Any] = {
-                "quiet": True,
-                "no_warnings": True,
-                "noplaylist": True,
-                "ignoreerrors": True,
-                "format": "best",
-                "allowed_extractors": ["youtube"],
-                "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
-            }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url_real, download=False)
-                if info:
-                    info_dict = cast(dict[str, Any], info)
-                    formats = info_dict.get("formats", [])
-                    for f in formats:
-                        u = f.get("url")
-                        if (
-                            isinstance(u, str)
-                            and u.startswith("http")
-                            and f.get("vcodec") != "none"
-                            and f.get("acodec") != "none"
-                        ):
-                            url_real = u
-                            break
-                    if "youtube.com" in url_real or "youtu.be" in url_real:
-                        direct = info_dict.get("url")
-                        if isinstance(direct, str) and direct.startswith("http"):
-                            url_real = direct
-
-            if url_real.startswith("http://"):
-                url_real = url_real.replace("http://", "https://", 1)
-        except Exception:
-            pass
+    if url_real.startswith("http://"):
+        url_real = url_real.replace("http://", "https://", 1)
 
     return RedirectResponse(url=url_real)
 
