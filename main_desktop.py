@@ -2,7 +2,6 @@
 import json
 import os
 import re
-import subprocess
 import sys
 from typing import Any, cast
 
@@ -19,6 +18,8 @@ FRONTEND_DIR = os.path.join(BASE_DIR, "apps", "web-frontend")
 INDEX_HTML = os.path.join(FRONTEND_DIR, "index.html")
 PREMIUM_HTML = os.path.join(FRONTEND_DIR, "premium.html")
 
+CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".yt_downloader_config.json")
+
 RAILWAY_BASE = os.getenv(
     "RAILWAY_API_URL",
     "https://backend-production-5a6c0.up.railway.app",
@@ -32,6 +33,29 @@ YOUTUBE_REGEX = re.compile(
 )
 
 
+def ler_token_local() -> str:
+    try:
+        if os.path.exists(CONFIG_PATH):
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                token = data.get("premium_token", "")
+                if isinstance(token, str):
+                    return token
+    except Exception:
+        pass
+    return ""
+
+
+def salvar_token_local(token: str) -> None:
+    if not token:
+        return
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump({"premium_token": token}, f)
+    except Exception:
+        pass
+
+
 class Bridge:
     def verificar_token(self, token: str) -> str:
         try:
@@ -41,9 +65,12 @@ class Bridge:
             )
             if resp.status_code == 200:
                 data = resp.json()
+                valido = data.get("active", False)
+                if valido:
+                    salvar_token_local(token)
                 return json.dumps(
                     {
-                        "valido": data.get("active", False),
+                        "valido": valido,
                         "detalhe": data.get("status", "ok"),
                     }
                 )
@@ -164,7 +191,7 @@ class Bridge:
                 "format": "best",
                 "noplaylist": True,
                 "ignoreerrors": True,
-                "extractor_args": {"youtube": {"client": ["android"]}},
+                "extractor_args": {"youtube": {"client": ["android", "ios"]}},
             }
             with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
                 ydl.download([stream_url])
@@ -191,10 +218,16 @@ class Bridge:
         if not os.path.isdir(caminho):
             return
         if sys.platform == "win32":
+            import subprocess
+
             subprocess.run(["explorer", caminho], shell=True)
         elif sys.platform == "darwin":
+            import subprocess
+
             subprocess.run(["open", caminho])
         else:
+            import subprocess
+
             subprocess.run(["xdg-open", caminho])
 
     def _extrair_metadados(self, url: str) -> dict[str, Any]:
@@ -207,7 +240,7 @@ class Bridge:
             "extract_flat": True,
             "youtube_include_dash_manifest": False,
             "youtube_include_hls_manifest": False,
-            "extractor_args": {"youtube": {"client": ["android"]}},
+            "extractor_args": {"youtube": {"client": ["android", "ios"]}},
             "http_headers": {
                 "User-Agent": (
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -240,44 +273,18 @@ class Bridge:
         return {"title": title, "duration": duration, "thumbnail": thumbnail}
 
     def _resolver_stream(self, url: str) -> str | None:
-        cmd = (
-            "yt-dlp --quiet --no-warnings "
-            '--format "best" '
-            '--extractor-args "youtube:client=android" '
-            "--get-url "
-            '"{url}"'
-        )
-        cmd = cmd.format(url=url)
-
+        opts: dict[str, Any] = {
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "ignoreerrors": True,
+            "format": "best",
+            "extractor_args": {"youtube": {"client": ["android", "ios"]}},
+            "youtube_include_dash_manifest": False,
+            "youtube_include_hls_manifest": False,
+        }
         try:
-            result = subprocess.run(
-                cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
-            stdout = result.stdout.strip()
-            if stdout and stdout.startswith("http"):
-                return stdout
-        except Exception:
-            pass
-
-        try:
-            fallback_opts: dict[str, Any] = {
-                "quiet": True,
-                "no_warnings": True,
-                "noplaylist": True,
-                "ignoreerrors": True,
-                "allowed_extractors": ["youtube"],
-                "youtube_include_dash_manifest": True,
-                "youtube_include_hls_manifest": True,
-                "no_youtube_format_sort": True,
-                "ignore_no_formats_error": True,
-                "format": "best",
-                "extractor_args": {"youtube": {"client": ["android"]}},
-            }
-            with yt_dlp.YoutubeDL(cast(Any, fallback_opts)) as ydl:
+            with yt_dlp.YoutubeDL(cast(Any, opts)) as ydl:
                 info = ydl.extract_info(url, download=False)
                 if info:
                     info_dict = cast(dict[str, Any], info)
@@ -286,18 +293,22 @@ class Bridge:
                         return direct_url
 
                     formats = info_dict.get("formats", [])
-                    for f in formats:
-                        u = f.get("url")
-                        if isinstance(u, str) and u.startswith("http"):
-                            return u
+                    if isinstance(formats, list) and formats:
+                        first = formats[0]
+                        if isinstance(first, dict):
+                            u = first.get("url")
+                            if isinstance(u, str) and u.startswith("http"):
+                                return u
         except Exception:
             pass
-
         return None
 
 
 def main() -> None:
-    token = os.getenv("PREMIUM_TOKEN", "")
+    token = ler_token_local()
+    if not token:
+        token = os.getenv("PREMIUM_TOKEN", "")
+
     bridge = Bridge()
 
     if token:
@@ -313,7 +324,7 @@ def main() -> None:
     else:
         html = INDEX_HTML
 
-    window = webview.create_window(
+    webview.create_window(
         title="YT Downloader Desktop",
         url=html,
         js_api=bridge,
@@ -324,9 +335,6 @@ def main() -> None:
         text_select=False,
         confirm_close=False,
     )
-
-    if token and html == INDEX_HTML:
-        window.evaluate_js("localStorage.setItem('premium_token', '" + token + "');")
 
     webview.start(
         debug=os.getenv("DEBUG", "").lower() in ("1", "true", "yes"),

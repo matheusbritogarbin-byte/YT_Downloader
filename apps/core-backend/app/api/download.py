@@ -307,12 +307,12 @@ async def process_youtube_video(
         )
 
     try:
-        client_host = (
+        client_host: str = (
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
-        raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        ip_parts = str(raw_ip).split(",")
-        client_ip = ip_parts[0].strip()
+        raw_ip: str = fastapi_request.headers.get("x-forwarded-for", client_host)
+        ip_parts: list[str] = str(raw_ip).split(",")
+        client_ip: str = ip_parts[0].strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -328,9 +328,10 @@ async def process_youtube_video(
         current_data = await redis_client.get(redis_key)
         if current_data and str(current_data).startswith("downloads:"):
             try:
-                parts = str(current_data).split("|")
-                count_part = parts[0].split(":")
-                count = int(count_part[1])
+                raw_parts: list[str] = str(current_data).split("|")
+                count_segment: str = raw_parts[0]
+                count_value: list[str] = count_segment.split(":")
+                count: int = int(count_value[1])
                 if count >= 2:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
@@ -381,9 +382,10 @@ async def process_youtube_video(
             count = 1
             if current_data and str(current_data).startswith("downloads:"):
                 try:
-                    parts = str(current_data).split("|")
-                    count_part = parts[0].split(":")
-                    count = int(count_part[1]) + 1
+                    raw_parts_2: list[str] = str(current_data).split("|")
+                    count_segment_2: str = raw_parts_2[0]
+                    count_value_2: list[str] = count_segment_2.split(":")
+                    count = int(count_value_2[1]) + 1
                 except Exception:
                     count = 1
 
