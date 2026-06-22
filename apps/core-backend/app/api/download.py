@@ -1,7 +1,6 @@
 import asyncio
 import os
 import re
-import subprocess
 import urllib.parse
 from datetime import datetime
 from typing import Any, cast, AsyncIterator
@@ -18,13 +17,11 @@ router = APIRouter(prefix="/download", tags=["Media Downloader"])
 YOUTUBE_REGEX = re.compile(
     r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/(watch\?v=|shorts/|embed/|playlist\?list=)?([a-zA-Z0-9_-]{11})(\S*)?$"
 )
-
 ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3", "100.64.0.4"]
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 redis_client: Any = cast(Any, aioredis).from_url(redis_url, decode_responses=True)
 
-# Configuração de Proxy Residencial Dinâmica via f-string para facilitar manutenções futuras
 user = "lrxlolkp"
 senha = "nr93zkbnhywf"
 ip = "45.38.107.97"
@@ -56,11 +53,7 @@ class BatchDownloadResponse(BaseModel):
     results: list[DownloadResponseItem]
 
 
-# ---------------------------------------------------------------------------
-# Opções base do yt-dlp (partilhadas entre rotas)
-# ---------------------------------------------------------------------------
-def _build_ydl_opts() -> dict[str, Any]:
-    """Constrói opções base — APENAS para metadados (extract_flat)."""
+def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
     cookie_path = "/tmp/youtube_cookies.txt"
     cookies_content = os.getenv("YOUTUBE_COOKIES_DATA", "")
 
@@ -71,228 +64,72 @@ def _build_ydl_opts() -> dict[str, Any]:
         except Exception:
             pass
 
-    opts: dict[str, Any] = {
+    url_limpa = url
+    if "list=" in url_limpa:
+        url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
+
+    ydl_opts: dict[str, Any] = {
         "proxy": PROXY_URL,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
         "noplaylist": True,
         "ignoreerrors": True,
-        "allowed_extractors": ["youtube"],
-        "extract_flat": True,  # APENAS metadados — sem validação de formatos
+        "extract_flat": True,
         "youtube_include_dash_manifest": False,
         "youtube_include_hls_manifest": False,
-        "extractor_args": {"youtube": {"client": ["android"]}},
+        "allowed_extractors": ["youtube"],
         "http_headers": {
-            "User-Agent": (
-                "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro Build/UD1A.230803.041; wv) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 "
-                "Chrome/120.0.6099.230 Mobile Safari/537.36"
-            ),
-            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
     }
 
     if os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 0:
-        opts["cookiefile"] = cookie_path
-
-    return opts
-
-
-# ---------------------------------------------------------------------------
-# Selecção manual de formatos (apenas para o caso de fallback da API Python)
-# ---------------------------------------------------------------------------
-def _extrair_url_stream(info: dict[str, Any], ext: str) -> str | None:
-    formats: list[dict[str, Any]] = info.get("formats") or []
-
-    direct_url = info.get("url")
-    if direct_url and isinstance(direct_url, str) and direct_url.startswith("http"):
-        return direct_url
-
-    if not formats:
-        return None
-
-    def _tem_url(f: dict[str, Any]) -> bool:
-        u = f.get("url")
-        return bool(u) and isinstance(u, str) and u.startswith("http")
-
-    def _tem_audio(f: dict[str, Any]) -> bool:
-        return f.get("acodec") not in (None, "none")
-
-    def _tem_video_e_audio(f: dict[str, Any]) -> bool:
-        return f.get("vcodec") not in (None, "none") and f.get("acodec") not in (
-            None,
-            "none",
-        )
-
-    if ext == "mp4":
-        # Progressivo MP4
-        candidates = [
-            f
-            for f in formats
-            if _tem_url(f) and _tem_video_e_audio(f) and f.get("ext") == "mp4"
-        ]
-        candidates.sort(key=lambda f: f.get("height", 0) or 0, reverse=True)
-        if candidates:
-            return str(candidates[0]["url"])
-        candidates = [f for f in formats if _tem_url(f) and _tem_video_e_audio(f)]
-        candidates.sort(key=lambda f: f.get("height", 0) or 0, reverse=True)
-        if candidates:
-            return str(candidates[0]["url"])
-
-    # Áudio dedicado
-    candidates = [
-        f
-        for f in formats
-        if _tem_url(f)
-        and (f.get("vcodec") or "none") in ("none", None)
-        and _tem_audio(f)
-    ]
-    candidates.sort(
-        key=lambda f: (
-            0 if f.get("ext") in ("m4a", "mp4") else 1,
-            -(f.get("abr", 0) or 0),
-        )
-    )
-    if candidates:
-        return str(candidates[0]["url"])
-
-    # Qualquer formato com áudio
-    candidates = [f for f in formats if _tem_url(f) and _tem_audio(f)]
-    candidates.sort(
-        key=lambda f: (
-            0 if (f.get("vcodec") or "none") in ("none", None) else 1,
-            -(f.get("abr", 0) or 0),
-        )
-    )
-    if candidates:
-        return str(candidates[0]["url"])
-
-    # Último recurso
-    for f in formats:
-        if _tem_url(f):
-            return str(f["url"])
-
-    return None
-
-
-def _determinar_ext_real(download_url: str, ext_solicitado: str) -> str:
-    if ext_solicitado != "mp3":
-        return ext_solicitado
-    path = urllib.parse.urlparse(download_url).path.lower()
-    if path.endswith(".webm"):
-        return "webm"
-    if path.endswith(".m4a"):
-        return "m4a"
-    return ext_solicitado
-
-
-# ---------------------------------------------------------------------------
-# Subprocess yt-dlp --get-url (contorna validação interna da API Python)
-# ---------------------------------------------------------------------------
-def _resolver_url_via_subprocess(url: str) -> str | None:
-    """
-    Usa `yt-dlp --get-url --format "worst"` via subprocess para obter a URL
-    real da stream do Google Video.
-
-    O subprocess contorna a validação interna de formatos que a API Python
-    do yt-dlp faz e que dispara o erro "Requested format is not available"
-    para conteúdo protegido.
-    """
-    cookie_path = "/tmp/youtube_cookies.txt"
-    cookie_arg = (
-        f'--cookiefile "{cookie_path}"'
-        if os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 0
-        else ""
-    )
-
-    cmd = (
-        f"yt-dlp --quiet --no-warnings "
-        f'--proxy "{PROXY_URL}" '
-        f'--format "worst" '
-        f'--extractor-args "youtube:client=android" '
-        f"--get-url "
-        f"{cookie_arg} "
-        f'"{url}"'
-    )
+        ydl_opts["cookiefile"] = cookie_path
 
     try:
-        result = subprocess.run(
-            cmd,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        stdout = result.stdout.strip()
-        if stdout and stdout.startswith("http"):
-            return stdout
-    except Exception:
-        pass
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Extração de metadados (usada pelo /processar)
-# ---------------------------------------------------------------------------
-def extrair_midia_com_seguranca(url: str, is_premium: bool) -> dict[str, Any]:
-    """
-    Extrai APENAS metadados textuais via extract_flat=True.
-    A URL de stream NÃO é resolvida aqui — isso acontece no GET /stream
-    via subprocess yt-dlp --get-url, que contorna a validação de formatos.
-    """
-    url_limpa = url
-    if "list=" in url_limpa:
-        url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
-
-    opts = _build_ydl_opts()
-
-    title = "Vídeo Sem Título"
-    duration = 0
-    thumbnail = ""
-
-    try:
-        with yt_dlp.YoutubeDL(cast(Any, opts)) as ydl:
+        with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
             extracted = ydl.extract_info(url_limpa, download=False)
-            if extracted:
-                info = cast(dict[str, Any], extracted)
-                title = info.get("title", title)
-                duration = info.get("duration", duration)
-                thumbnail = info.get("thumbnail", "")
-                video_id = info.get("id", "")
+            if not extracted:
+                raise ValueError("YouTube anti-bot block.")
 
-                if not thumbnail and video_id:
-                    thumbnail = f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
-    except Exception:
-        pass
+            info = cast(dict[str, Any], extracted)
+            title = info.get("title", "Vídeo Sem Título")
+            duration = info.get("duration", 0)
+            thumbnail = info.get("thumbnail", "")
 
-    return {
-        "title": str(title),
-        "download_url": str(url_limpa),  # A stream real será resolvida no /stream
-        "video_url": str(url_limpa),
-        "duration": int(duration) if isinstance(duration, (int, float)) else 0,
-        "thumbnail": str(thumbnail),
-        "status": "success" if title != "Vídeo Sem Título" else "failed",
-        "error_message": (
-            None if title != "Vídeo Sem Título" else "Falha ao obter título do vídeo."
-        ),
-    }
+            if not thumbnail and info.get("id"):
+                thumbnail = f"https://youtube.com{info.get('id')}/mqdefault.jpg"
+
+            video_id = info.get("id", "video_id")
+            download_url = f"https://youtube.com{video_id}"
+
+            return {
+                "title": str(title),
+                "download_url": download_url,
+                "duration": int(duration) if isinstance(duration, (int, float)) else 0,
+                "thumbnail": str(thumbnail),
+                "status": "success",
+                "error_message": None,
+            }
+    except Exception as e:
+        return {
+            "title": "Erro",
+            "download_url": "",
+            "duration": 0,
+            "thumbnail": "",
+            "status": "failed",
+            "error_message": str(e),
+        }
 
 
-async def processar_item_async(
-    item: DownloadItemRequest, is_premium: bool
-) -> dict[str, Any]:
+async def processar_item_async(item: DownloadItemRequest) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
-    res = await loop.run_in_executor(
-        None, extrair_midia_com_seguranca, str(item.url), is_premium
-    )
+    res = await loop.run_in_executor(None, extrair_midia_com_seguranca, str(item.url))
     res["url"] = item.url
     return res
 
 
-# ---------------------------------------------------------------------------
-# POST /processar  —  extrai metadados e devolve link para /stream
-# ---------------------------------------------------------------------------
 @router.post(
     "/processar",
     response_model=BatchDownloadResponse,
@@ -307,12 +144,12 @@ async def process_youtube_video(
         )
 
     try:
-        client_host: str = (
+        client_host = (
             fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
         )
-        raw_ip: str = fastapi_request.headers.get("x-forwarded-for", client_host)
-        ip_parts: list[str] = str(raw_ip).split(",")
-        client_ip: str = ip_parts[0].strip()
+        raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
+        ip_parts = str(raw_ip).split(",")
+        client_ip = str(ip_parts[0]).strip()
     except Exception:
         client_ip = "127.0.0.1"
 
@@ -328,10 +165,9 @@ async def process_youtube_video(
         current_data = await redis_client.get(redis_key)
         if current_data and str(current_data).startswith("downloads:"):
             try:
-                raw_parts: list[str] = str(current_data).split("|")
-                count_segment: str = raw_parts[0]
-                count_value: list[str] = count_segment.split(":")
-                count: int = int(count_value[1])
+                parts = str(current_data).split("|")
+                count_part = parts[0].split(":")
+                count = int(count_part[1])
                 if count >= 2:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
@@ -355,10 +191,9 @@ async def process_youtube_video(
                 detail=f"URL inválida: {item.url}",
             )
 
-    tasks = [processar_item_async(item, is_premium) for item in request.items]
+    tasks = [processar_item_async(item) for item in request.items]
     raw_results = await asyncio.gather(*tasks)
 
-    # Construir URL base do próprio servidor para montar links do /stream
     try:
         scheme = fastapi_request.url.scheme
         host = fastapi_request.url.hostname
@@ -367,14 +202,11 @@ async def process_youtube_video(
         if port and port not in (80, 443):
             base_url += f":{port}"
     except Exception:
-        base_url = os.getenv(
-            "STREAM_BASE_URL",
-            "https://backend-production-5a6c0.up.railway.app",
-        )
+        base_url = "https://railway.app"
 
     stream_endpoint = f"{base_url}/api/v1/download/stream"
-
     results_list: list[DownloadResponseItem] = []
+
     for r in raw_results:
         if r.get("status") == "success" and not is_premium:
             redis_key = f"quota:{client_ip}"
@@ -382,10 +214,9 @@ async def process_youtube_video(
             count = 1
             if current_data and str(current_data).startswith("downloads:"):
                 try:
-                    raw_parts_2: list[str] = str(current_data).split("|")
-                    count_segment_2: str = raw_parts_2[0]
-                    count_value_2: list[str] = count_segment_2.split(":")
-                    count = int(count_value_2[1]) + 1
+                    parts = str(current_data).split("|")
+                    count_part = parts[0].split(":")
+                    count = int(count_part[1]) + 1
                 except Exception:
                     count = 1
 
@@ -393,26 +224,24 @@ async def process_youtube_video(
             await redis_client.set(redis_key, f"downloads:{count}|data:{hoje}")
             await redis_client.expire(redis_key, 86400)
 
-        # A stream será resolvida no /stream
-        video_url = str(r.get("video_url", ""))
+        orig_url = str(r.get("download_url", ""))
         title_limpo = str(r.get("title", "arquivo")).replace(" ", "_")
-        url_codificada = urllib.parse.quote(video_url)
+        url_codificada = urllib.parse.quote_plus(orig_url)
 
         extensao = "mp3"
         for item in request.items:
             if item.url == r.get("url") and "mp4" in item.quality_profile:
                 extensao = "mp4"
 
-        download_url = (
-            f"{stream_endpoint}?url={url_codificada}"
-            f"&title={title_limpo}&ext={extensao}"
+        proxy_download_url = (
+            f"{stream_endpoint}?url={url_codificada}&title={title_limpo}&ext={extensao}"
         )
 
         results_list.append(
             DownloadResponseItem(
                 url=str(r.get("url", "")),
                 title=str(r.get("title", "Vídeo Sem Título")),
-                download_url=download_url,
+                download_url=proxy_download_url,
                 duration=int(r.get("duration", 0)),
                 thumbnail=str(r.get("thumbnail", "")),
                 status=str(r.get("status", "failed")),
@@ -427,9 +256,6 @@ async def process_youtube_video(
     return BatchDownloadResponse(results=results_list)
 
 
-# ---------------------------------------------------------------------------
-# GET /stream  —  resolve a stream real via subprocess e faz proxy
-# ---------------------------------------------------------------------------
 @router.get("/stream")
 async def stream_youtube_bytes(
     url: str, title: str, ext: str = "mp3"
@@ -439,79 +265,58 @@ async def stream_youtube_bytes(
 
     url_real = urllib.parse.unquote_plus(url)
 
-    is_youtube_url = "youtube.com" in url_real or "youtu.be" in url_real
-
-    download_url_resolved = url_real
-
-    if is_youtube_url:
-        # --- TÁCTICA PRINCIPAL: subprocess yt-dlp --get-url ---
-        # Contorna COMPLETAMENTE a validação interna de formatos que a API
-        # Python do yt-dlp faz e que dispara:
-        #   ERROR: [youtube] VIDEO_ID: Requested format is not available
-        resolved = _resolver_url_via_subprocess(url_real)
-        if resolved:
-            download_url_resolved = resolved
-        else:
-            # Fallback: yt-dlp Python API com opções mínimas
-            try:
-                fallback_opts = _build_ydl_opts()
-                fallback_opts.pop("extract_flat", None)
-                fallback_opts["youtube_include_dash_manifest"] = True
-                fallback_opts["youtube_include_hls_manifest"] = True
-                fallback_opts["ignore_no_formats_error"] = True
-                fallback_opts["no_youtube_format_sort"] = True
-                fallback_opts["format"] = "worst"
-                with yt_dlp.YoutubeDL(cast(Any, fallback_opts)) as ydl:
-                    info = ydl.extract_info(url_real, download=False)
-                    if info:
-                        resolved = _extrair_url_stream(cast(dict[str, Any], info), ext)
-                        if resolved:
-                            download_url_resolved = resolved
-            except Exception:
-                pass
-
-    # Verificar se ainda temos URL do YouTube (stream não resolvida)
-    if "youtube.com" in download_url_resolved or "youtu.be" in download_url_resolved:
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Não foi possível obter a stream directa deste vídeo. "
-                "O conteúdo pode estar protegido por restrições regionais "
-                "ou de copyright. Tente novamente mais tarde."
-            ),
-        )
-
-    ext_real = _determinar_ext_real(download_url_resolved, ext)
+    if "youtube.com" in url_real or "youtu.be" in url_real:
+        try:
+            opts = {
+                "proxy": PROXY_URL,
+                "format": "best",
+                "quiet": True,
+                "no_warnings": True,
+                "ignoreerrors": True,
+                "youtube_include_dash_manifest": False,
+                "youtube_include_hls_manifest": False,
+                "allowed_extractors": ["youtube"],
+            }
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                res_dict = ydl.extract_info(url_real, download=False)
+                if res_dict:
+                    download_url_resolved = ""
+                    formats = res_dict.get("formats", [])
+                    if formats:
+                        for f in formats:
+                            u = f.get("url")
+                            if (
+                                isinstance(u, str)
+                                and u.startswith("http")
+                                and f.get("vcodec") != "none"
+                                and f.get("acodec") != "none"
+                            ):
+                                download_url_resolved = u
+                                break
+                    if not download_url_resolved:
+                        download_url_resolved = str(res_dict.get("url", ""))
+                    if download_url_resolved:
+                        url_real = download_url_resolved
+        except Exception:
+            pass
 
     async def generate_bytes() -> AsyncIterator[bytes]:
         headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
         try:
             async with httpx.AsyncClient(timeout=None) as client:
-                async with client.stream(
-                    "GET", download_url_resolved, headers=headers
-                ) as response:
+                async with client.stream("GET", url_real, headers=headers) as response:
                     if response.status_code != 200:
-                        yield (
-                            b"Erro ao transmitir arquivo do servidor de origem "
-                            b"(c\xc3\xb3digo: "
-                            + str(response.status_code).encode()
-                            + b")"
-                        )
+                        yield b"Erro de transmissao"
                         return
                     async for chunk in response.aiter_bytes(chunk_size=1024 * 64):
                         yield chunk
         except Exception:
-            yield b"Erro de conex\xc3\xa3o ao transmitir o arquivo."
+            yield b"Erro de conexao"
 
-    filename = f"{title}.{ext_real}"
+    filename = f"{title}.{ext}"
     mime_type = "video/mp4" if ext == "mp4" else "audio/mpeg"
-
     return StreamingResponse(
         generate_bytes(),
         media_type=mime_type,
@@ -522,3 +327,54 @@ async def stream_youtube_bytes(
             "Access-Control-Allow-Headers": "*",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Rotas Administrativas (protegidas por X-Admin-Token)
+# ---------------------------------------------------------------------------
+ADMIN_TOKEN = os.getenv(
+    "ADMIN_SECRET_TOKEN", "CHAVE_ULTRA_SECRETA_QUE_SO_VOCE_SABE_123"
+)
+
+
+def _validar_admin_token(request: Request) -> None:
+    token_header: str | None = request.headers.get("X-Admin-Token")
+    if not token_header or token_header != ADMIN_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Acesso proibido. Tentativa de invasao registrada.",
+        )
+
+
+@router.get("/admin/tokens")
+async def admin_listar_tokens(fastapi_request: Request) -> dict[str, Any]:
+    _validar_admin_token(fastapi_request)
+    cursor: int = 0
+    chaves: list[str] = []
+    while True:
+        cursor, batch = await redis_client.scan(
+            cursor=cursor, match="token:*", count=100
+        )
+        chaves.extend(batch)
+        if cursor == 0:
+            break
+    valores: dict[str, str | None] = {}
+    for chave in chaves:
+        valor = await redis_client.get(chave)
+        if valor is not None:
+            valores[chave] = str(valor)
+    return {"tokens": valores}
+
+
+class AdminResetQuotaRequest(BaseModel):
+    ip: str
+
+
+@router.post("/admin/reset-quota")
+async def admin_reset_quota(
+    body: AdminResetQuotaRequest, fastapi_request: Request
+) -> dict[str, str]:
+    _validar_admin_token(fastapi_request)
+    redis_key: str = f"quota:{body.ip}"
+    await redis_client.delete(redis_key)
+    return {"status": "ok", "mensagem": f"Quota do IP {body.ip} foi resetada."}

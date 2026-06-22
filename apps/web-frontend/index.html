@@ -87,7 +87,6 @@
         const MAX_DOWNLOADS = 2;
         const API_BASE_URL = "https://backend-production-5a6c0.up.railway.app/";
 
-        // --- Detecta se está dentro do PyWebView Desktop -------------------
         const IS_DESKTOP = typeof window.pywebview !== 'undefined'
             && window.pywebview !== null
             && typeof window.pywebview.api !== 'undefined'
@@ -141,9 +140,6 @@
             modal.classList.remove('active');
         }
 
-        // ------------------------------------------------------------------
-        // Handler principal do formulário de download
-        // ------------------------------------------------------------------
         document.getElementById('downloadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const statusAlert = document.getElementById('statusAlert');
@@ -162,38 +158,29 @@
             statusAlert.classList.remove('hidden');
             statusAlert.className = "status-alert status-blue";
 
-            // ==============================================================
-            // MODO PYTHON DESKTOP  (PyWebView Bridge)
-            // ==============================================================
-            if (IS_DESKTOP) {
+            // CORREÇÃO DEFINTIVA: Checa em tempo de clique real se a API do PyWebView está injetada
+            const É_APLICATIVO_DESKTOP = typeof window.pywebview !== 'undefined' && window.pywebview !== null && window.pywebview.api;
+
+            if (É_APLICATIVO_DESKTOP) {
                 statusAlert.innerText = "PROCESSANDO VIA MECANISMO NATIVO DO SEU SISTEMA...";
                 try {
-                    // 1) Extrair metadados + stream URL via Bridge Python local
-                    const rawResult = await window.pywebview.api.processar(
-                        JSON.stringify([videoUrl]),
-                        "mp3_128k"
-                    );
+                    // Força a extração usando o IP local da sua casa (SEM chamar o Railway)
+                    const rawResult = await window.pywebview.api.processar(JSON.stringify([videoUrl]), "mp3_128k");
                     const parsed = JSON.parse(rawResult);
                     const result = parsed.results && parsed.results[0];
-
+                    
                     if (!result || result.status !== "success") {
                         throw new Error(result?.error_message || "Falha ao processar vídeo.");
                     }
 
-                    // 2) Descarregar o ficheiro directamente para Downloads
-                    const downloadResult = await window.pywebview.api.baixar_ficheiro(
-                        result.download_url,
-                        result.title,
-                        "mp3",
-                        ""  // pasta predefinida (Downloads do SO)
-                    );
+                    // Força o download físico a gravar direto na sua pasta de Downloads
+                    const downloadResult = await window.pywebview.api.baixar_ficheiro(result.download_url, result.title, "mp3", "");
                     const saveInfo = JSON.parse(downloadResult);
-
+                    
                     if (!saveInfo.sucesso) {
                         throw new Error(saveInfo.erro || "Erro ao salvar ficheiro.");
                     }
 
-                    // 3) Mostrar card de sucesso
                     incrementCount();
                     statusAlert.className = "status-alert status-green";
                     statusAlert.innerText = "ARQUIVO BAIXADO COM SUCESSO!";
@@ -204,10 +191,8 @@
                         <img src="${result.thumbnail || ''}" alt="Thumb" style="width: 100%; border: 1px solid rgba(220,38,38,0.3);" />
                         <h3 style="font-size: 13px; margin: 12px 0; color: #f8fafc; font-weight: 700;">${result.title}</h3>
                         <div style="display: flex; gap: 8px; margin-top: 12px;">
-                            <button onclick="window.pywebview.api.abrir_pasta('${saveInfo.caminho.replace(/\\/g, '\\\\')}')"
-                                class="btn btn-green"
-                                style="flex: 1; padding: 12px; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; background: #22c55e; color: #fff;">
-                                📂 ABRIR PASTA
+                            <button onclick="window.pywebview.api.abrir_pasta('${saveInfo.caminho.replace(/\\/g, '\\\\')}')" class="btn btn-green" style="flex: 1; padding: 12px; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; background: #22c55e; color: #fff;">
+                                 ABRIR PASTA
                             </button>
                         </div>
                         <p style="color: #64748b; font-size: 11px; margin-top: 10px; word-break: break-all;">
@@ -215,7 +200,6 @@
                         </p>
                     `;
                     container.appendChild(itemCard);
-
                 } catch (error) {
                     statusAlert.className = "status-alert status-red";
                     statusAlert.innerText = "FALHA NO PROCESSAMENTO NATIVO: " + (error.message || "Erro desconhecido.");
@@ -225,11 +209,8 @@
                 return;
             }
 
-            // ==============================================================
-            // MODO NAVEGADOR  (fetch para Railway)
-            // ==============================================================
+            // MODO NAVEGADOR COMUM (SÓ RODA SE ABRIR O SITE NO GOOGLE CHROME/EDGE)
             statusAlert.innerText = "ESTABELECENDO CONEXÃO PROTEGIDA COM O SERVIDOR...";
-
             try {
                 const response = await fetch(`${API_BASE_URL}api/v1/download/processar`, {
                     method: 'POST',
@@ -247,7 +228,7 @@
 
                 if (!response.ok) throw new Error();
                 const batchResult = await response.json();
-
+                
                 statusAlert.className = "status-alert status-green";
                 statusAlert.innerText = "ARQUIVO CONVERTIDO COM SUCESSO!";
 
