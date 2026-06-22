@@ -28,6 +28,9 @@ ip = "45.38.107.97"
 porta = "6014"
 PROXY_URL = f"https://{user}:{senha}@{ip}:{porta}"
 
+os.environ["HTTP_PROXY"] = PROXY_URL
+os.environ["HTTPS_PROXY"] = PROXY_URL
+
 
 class DownloadItemRequest(BaseModel):
     url: str
@@ -70,7 +73,6 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
 
     ydl_opts: dict[str, Any] = {
         "proxy": PROXY_URL,
-        "noproxy": "localhost,127.0.0.1",
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
@@ -270,7 +272,6 @@ async def stream_youtube_bytes(
         try:
             opts: dict[str, Any] = {
                 "proxy": PROXY_URL,
-                "noproxy": "localhost,127.0.0.1",
                 "format": "best",
                 "quiet": True,
                 "no_warnings": True,
@@ -300,7 +301,6 @@ async def stream_youtube_bytes(
                     if download_url_resolved:
                         url_real = download_url_resolved
 
-            # Força HTTPS para eliminar erro Mixed Content no browser
             if url_real.startswith("http://"):
                 url_real = url_real.replace("http://", "https://", 1)
 
@@ -336,9 +336,6 @@ async def stream_youtube_bytes(
     )
 
 
-# ---------------------------------------------------------------------------
-# Rotas Administrativas (protegidas por X-Admin-Token)
-# ---------------------------------------------------------------------------
 ADMIN_TOKEN = os.getenv("ADMIN_SECRET_TOKEN", "@Matheus07052008")
 
 
