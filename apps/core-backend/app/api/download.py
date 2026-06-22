@@ -69,7 +69,7 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
     ydl_opts: dict[str, Any] = {
-        "proxy": PROXY_URL,
+        "proxy": {"http": PROXY_URL, "https": PROXY_URL},
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
