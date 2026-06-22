@@ -28,8 +28,10 @@ ip = "45.38.107.97"
 porta = "6014"
 PROXY_URL = f"https://{user}:{senha}@{ip}:{porta}"
 
-os.environ["HTTP_PROXY"] = PROXY_URL
-os.environ["HTTPS_PROXY"] = PROXY_URL
+PROXY_DICT = {
+    "http": PROXY_URL,
+    "https": PROXY_URL,
+}
 
 
 class DownloadItemRequest(BaseModel):
@@ -72,7 +74,7 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
     ydl_opts: dict[str, Any] = {
-        "proxy": PROXY_URL,
+        "proxy": PROXY_DICT,
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
@@ -271,7 +273,7 @@ async def stream_youtube_bytes(
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
             opts: dict[str, Any] = {
-                "proxy": PROXY_URL,
+                "proxy": PROXY_DICT,
                 "format": "best",
                 "quiet": True,
                 "no_warnings": True,
