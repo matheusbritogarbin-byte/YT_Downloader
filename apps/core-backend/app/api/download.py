@@ -26,7 +26,7 @@ user = "lrxlolkp"
 senha = "nr93zkbnhywf"
 ip = "45.38.107.97"
 porta = "6014"
-PROXY_URL = f"http://{user}:{senha}@{ip}:{porta}"
+PROXY_URL = f"https://{user}:{senha}@{ip}:{porta}"
 
 
 class DownloadItemRequest(BaseModel):
@@ -297,6 +297,11 @@ async def stream_youtube_bytes(
                         download_url_resolved = str(res_dict.get("url", ""))
                     if download_url_resolved:
                         url_real = download_url_resolved
+
+            # Força HTTPS para eliminar erro Mixed Content no browser
+            if url_real.startswith("http://"):
+                url_real = url_real.replace("http://", "https://", 1)
+
         except Exception:
             pass
 
