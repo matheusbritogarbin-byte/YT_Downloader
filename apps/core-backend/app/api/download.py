@@ -59,66 +59,43 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
         "no_warnings": True,
         "noplaylist": True,
         "ignoreerrors": True,
-        "format": "best",
+        "extract_flat": True,
         "allowed_extractors": ["youtube"],
-        "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        },
     }
 
     title = "Vídeo Sem Título"
     duration = 0
     thumbnail = ""
-    download_url = ""
+    video_url = url_limpa
 
     try:
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
             extracted = ydl.extract_info(url_limpa, download=False)
-            if not extracted:
-                raise ValueError("YouTube anti-bot block.")
+            if extracted:
+                info = cast(dict[str, Any], extracted)
+                title = info.get("title", title)
+                duration = info.get("duration", duration)
+                thumbnail = info.get("thumbnail", "")
+                video_id = info.get("id", "")
 
-            info = cast(dict[str, Any], extracted)
-            title = info.get("title", title)
-            duration = info.get("duration", duration)
-            thumbnail = info.get("thumbnail", "")
-            video_id = info.get("id", "")
+                if not thumbnail and video_id:
+                    thumbnail = f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
 
-            if not thumbnail and video_id:
-                thumbnail = f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
-
-            # Extrair URL real do Google Video da árvore formats[]
-            formats = info.get("formats", [])
-            if formats:
-                for f in formats:
-                    u = f.get("url")
-                    if (
-                        isinstance(u, str)
-                        and u.startswith("http")
-                        and f.get("vcodec") != "none"
-                        and f.get("acodec") != "none"
-                    ):
-                        download_url = u
-                        break
-
-            if not download_url:
-                direct_url = info.get("url")
-                if isinstance(direct_url, str) and direct_url.startswith("http"):
-                    download_url = direct_url
-
-            if download_url and download_url.startswith("http://"):
-                download_url = download_url.replace("http://", "https://", 1)
+                if video_id:
+                    video_url = f"https://www.youtube.com/watch?v={video_id}"
 
     except Exception:
         pass
 
     return {
         "title": str(title),
-        "download_url": download_url,
+        "download_url": video_url,
         "duration": int(duration) if isinstance(duration, (int, float)) else 0,
         "thumbnail": str(thumbnail),
-        "status": "success" if download_url else "failed",
-        "error_message": None if download_url else "Não foi possível obter a stream.",
+        "status": "success" if title != "Vídeo Sem Título" else "failed",
+        "error_message": (
+            None if title != "Vídeo Sem Título" else "Falha ao obter metadados."
+        ),
     }
 
 
