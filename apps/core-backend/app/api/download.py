@@ -69,7 +69,8 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
     ydl_opts: dict[str, Any] = {
-        "proxy": {"http": PROXY_URL, "https": PROXY_URL},
+        "proxy": PROXY_URL,
+        "noproxy": "localhost,127.0.0.1",
         "quiet": True,
         "no_warnings": True,
         "restrictfilenames": True,
@@ -267,8 +268,9 @@ async def stream_youtube_bytes(
 
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
-            opts = {
+            opts: dict[str, Any] = {
                 "proxy": PROXY_URL,
+                "noproxy": "localhost,127.0.0.1",
                 "format": "best",
                 "quiet": True,
                 "no_warnings": True,
