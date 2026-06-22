@@ -202,7 +202,7 @@ async def process_youtube_video(
         if port and port not in (80, 443):
             base_url += f":{port}"
     except Exception:
-        base_url = "https://railway.app"
+        base_url = "https://backend-production-5a6c0.up.railway.app"
 
     stream_endpoint = f"{base_url}/api/v1/download/stream"
     results_list: list[DownloadResponseItem] = []
@@ -332,9 +332,7 @@ async def stream_youtube_bytes(
 # ---------------------------------------------------------------------------
 # Rotas Administrativas (protegidas por X-Admin-Token)
 # ---------------------------------------------------------------------------
-ADMIN_TOKEN = os.getenv(
-    "ADMIN_SECRET_TOKEN", "CHAVE_ULTRA_SECRETA_QUE_SO_VOCE_SABE_123"
-)
+ADMIN_TOKEN = os.getenv("ADMIN_SECRET_TOKEN", "@Matheus07052008")
 
 
 def _validar_admin_token(request: Request) -> None:

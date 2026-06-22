@@ -4,7 +4,7 @@ import requests
 
 # CONFIGURAÇÃO DE SEGURANÇA MESTRA
 API_BASE_URL = "https://backend-production-5a6c0.up.railway.app/"
-ADMIN_SECRET_TOKEN = "CHAVE_ULTRA_SECRETA_QUE_SO_VOCE_SABE_123"
+ADMIN_SECRET_TOKEN = "@Matheus07052008"
 
 
 def limpar_tela():

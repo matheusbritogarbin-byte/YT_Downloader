@@ -1,14 +1,15 @@
+#!/usr/bin/env python3
 import json
 import logging
 import os
 import re
 import sys
 from typing import Any, cast
+
 import httpx
 import webview
 import yt_dlp
 
-# Configuração Industrial de Logs no Terminal
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -25,7 +26,7 @@ FRONTEND_DIR = os.path.join(BASE_DIR, "apps", "web-frontend")
 INDEX_HTML = os.path.join(FRONTEND_DIR, "index.html")
 PREMIUM_HTML = os.path.join(FRONTEND_DIR, "premium.html")
 
-RAILWAY_BASE = "https://railway.app"
+RAILWAY_BASE = "https://backend-production-5a6c0.up.railway.app"
 RAILWAY_VERIFY_TOKEN = f"{RAILWAY_BASE}/api/v1/payments/verify-token"
 
 YOUTUBE_REGEX = re.compile(
@@ -179,14 +180,14 @@ class Bridge:
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
-            # Adiciona log do progresso dos chunks gravados em tempo real
             bytes_baixados = 0
             with httpx.Client(timeout=None) as client:
                 with client.stream("GET", stream_url, headers=headers) as resp:
                     resp.raise_for_status()
-                    with open(caminho, "wb") as f:
-                        for chunk in resp.iter_bytes(chunk_size=1024 * 64):
+                    with open(caminho, "wb", buffering=1048576) as f:
+                        for chunk in resp.iter_bytes(chunk_size=65536):
                             f.write(chunk)
+                            f.flush()
                             bytes_baixados += len(chunk)
             logger.info(
                 f"Download concluido com sucesso! Total de bytes gravados em disco: {bytes_baixados}"
@@ -212,13 +213,20 @@ class Bridge:
             subprocess.run(["open", pasta])
 
     def _extrair_metadados(self, url: str) -> dict[str, Any]:
-        opts = {
+        opts: dict[str, Any] = {
             "quiet": True,
             "no_warnings": True,
             "noplaylist": True,
             "ignoreerrors": True,
             "extract_flat": True,
             "allowed_extractors": ["youtube"],
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "web"],
+                    "skip": ["dash", "hls"],
+                }
+            },
+            "cookiesfrombrowser": ("chrome", "default", None, None),
         }
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -235,15 +243,20 @@ class Bridge:
         return {"title": "Vídeo Sem Título", "duration": 0, "thumbnail": ""}
 
     def _resolver_stream(self, url: str) -> str | None:
-        opts = {
-            "quiet": False,  # Ativa logs internos do próprio yt-dlp para detalhar as buscas no terminal
-            "no_warnings": False,
+        opts: dict[str, Any] = {
+            "quiet": True,
+            "no_warnings": True,
             "noplaylist": True,
             "ignoreerrors": True,
-            "format": "best",
             "youtube_include_dash_manifest": False,
             "youtube_include_hls_manifest": False,
-            "extractor_args": {"youtube": {"client": ["android", "ios"]}},
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "web"],
+                    "skip": ["dash", "hls"],
+                }
+            },
+            "cookiesfrombrowser": ("chrome", "default", None, None),
         }
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -254,17 +267,23 @@ class Bridge:
                     if isinstance(direct_url, str) and direct_url.startswith("http"):
                         return direct_url
                     formats = info_dict.get("formats", [])
-                    if formats:
-                        for f in formats:
-                            u = f.get("url")
+                    if isinstance(formats, list) and formats:
+                        for fmt in formats:
+                            u = fmt.get("url")
                             if (
                                 isinstance(u, str)
                                 and u.startswith("http")
-                                and f.get("vcodec") != "none"
-                                and f.get("acodec") != "none"
+                                and fmt.get("vcodec") != "none"
+                                and fmt.get("acodec") != "none"
                             ):
                                 return u
-                        return str(formats[-1].get("url", ""))
+                        last = formats[-1]
+                        if isinstance(last, dict):
+                            last_url = last.get("url")
+                            if isinstance(last_url, str) and last_url.startswith(
+                                "http"
+                            ):
+                                return last_url
         except Exception as e:
             logger.error(f"Erro yt-dlp stream resolver: {str(e)}")
         return None

@@ -212,7 +212,7 @@
             // MODO NAVEGADOR COMUM (SÓ RODA SE ABRIR O SITE NO GOOGLE CHROME/EDGE)
             statusAlert.innerText = "ESTABELECENDO CONEXÃO PROTEGIDA COM O SERVIDOR...";
             try {
-                const response = await fetch(`${API_BASE_URL}api/v1/download/processar`, {
+                const response = await fetch(`${API_BASE_URL}/api/v1/download/processar`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ items: [{ url: videoUrl, quality_profile: "mp3_128k" }] })
@@ -260,7 +260,7 @@
                 return;
             }
             try {
-                const response = await fetch(`${API_BASE_URL}api/v1/payments/checkout/create-session`, {
+                const response = await fetch(`${API_BASE_URL}/api/v1/payments/checkout/create-session`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
