@@ -1,12 +1,10 @@
 import asyncio
 import os
 import re
-import urllib.parse
 from datetime import datetime
-from typing import Any, cast, AsyncIterator
-import httpx
+from typing import Any, cast
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 import redis.asyncio as aioredis
 import yt_dlp
@@ -21,12 +19,6 @@ ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3", "100.64.0.4"]
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 redis_client: Any = cast(Any, aioredis).from_url(redis_url, decode_responses=True)
-
-user = "lrxlolkp"
-senha = "nr93zkbnhywf"
-ip = "45.38.107.97"
-porta = "6014"
-PROXY_URL = f"https://{user}:{senha}@{ip}:{porta}"
 
 
 class DownloadItemRequest(BaseModel):
@@ -54,39 +46,31 @@ class BatchDownloadResponse(BaseModel):
 
 
 def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
-    cookie_path = "/tmp/youtube_cookies.txt"
-    cookies_content = os.getenv("YOUTUBE_COOKIES_DATA", "")
-
-    if cookies_content and not os.path.exists(cookie_path):
-        try:
-            with open(cookie_path, "w", encoding="utf-8") as f:
-                f.write(cookies_content)
-        except Exception:
-            pass
-
+    """
+    Extrai metadados + URL directa do Google Video usando o IP nativo
+    do Railway (client-side). SEM proxy, SEM extract_flat.
+    """
     url_limpa = url
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
     ydl_opts: dict[str, Any] = {
-        "proxy": PROXY_URL,
-        "prefer_insecure": True,
         "quiet": True,
         "no_warnings": True,
-        "restrictfilenames": True,
         "noplaylist": True,
         "ignoreerrors": True,
-        "extract_flat": True,
-        "youtube_include_dash_manifest": False,
-        "youtube_include_hls_manifest": False,
+        "format": "best",
         "allowed_extractors": ["youtube"],
+        "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         },
     }
 
-    if os.path.exists(cookie_path) and os.path.getsize(cookie_path) > 0:
-        ydl_opts["cookiefile"] = cookie_path
+    title = "Vídeo Sem Título"
+    duration = 0
+    thumbnail = ""
+    download_url = ""
 
     try:
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
@@ -95,33 +79,47 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
                 raise ValueError("YouTube anti-bot block.")
 
             info = cast(dict[str, Any], extracted)
-            title = info.get("title", "Vídeo Sem Título")
-            duration = info.get("duration", 0)
+            title = info.get("title", title)
+            duration = info.get("duration", duration)
             thumbnail = info.get("thumbnail", "")
+            video_id = info.get("id", "")
 
-            if not thumbnail and info.get("id"):
-                thumbnail = f"https://youtube.com{info.get('id')}/mqdefault.jpg"
+            if not thumbnail and video_id:
+                thumbnail = f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
 
-            video_id = info.get("id", "video_id")
-            download_url = f"https://youtube.com{video_id}"
+            # Extrair URL real do Google Video da árvore formats[]
+            formats = info.get("formats", [])
+            if formats:
+                for f in formats:
+                    u = f.get("url")
+                    if (
+                        isinstance(u, str)
+                        and u.startswith("http")
+                        and f.get("vcodec") != "none"
+                        and f.get("acodec") != "none"
+                    ):
+                        download_url = u
+                        break
 
-            return {
-                "title": str(title),
-                "download_url": download_url,
-                "duration": int(duration) if isinstance(duration, (int, float)) else 0,
-                "thumbnail": str(thumbnail),
-                "status": "success",
-                "error_message": None,
-            }
-    except Exception as e:
-        return {
-            "title": "Erro",
-            "download_url": "",
-            "duration": 0,
-            "thumbnail": "",
-            "status": "failed",
-            "error_message": str(e),
-        }
+            if not download_url:
+                direct_url = info.get("url")
+                if isinstance(direct_url, str) and direct_url.startswith("http"):
+                    download_url = direct_url
+
+            if download_url and download_url.startswith("http://"):
+                download_url = download_url.replace("http://", "https://", 1)
+
+    except Exception:
+        pass
+
+    return {
+        "title": str(title),
+        "download_url": download_url,
+        "duration": int(duration) if isinstance(duration, (int, float)) else 0,
+        "thumbnail": str(thumbnail),
+        "status": "success" if download_url else "failed",
+        "error_message": None if download_url else "Não foi possível obter a stream.",
+    }
 
 
 async def processar_item_async(item: DownloadItemRequest) -> dict[str, Any]:
@@ -195,17 +193,6 @@ async def process_youtube_video(
     tasks = [processar_item_async(item) for item in request.items]
     raw_results = await asyncio.gather(*tasks)
 
-    try:
-        scheme = fastapi_request.url.scheme
-        host = fastapi_request.url.hostname
-        port = fastapi_request.url.port
-        base_url = f"{scheme}://{host}"
-        if port and port not in (80, 443):
-            base_url += f":{port}"
-    except Exception:
-        base_url = "https://backend-production-5a6c0.up.railway.app"
-
-    stream_endpoint = f"{base_url}/api/v1/download/stream"
     results_list: list[DownloadResponseItem] = []
 
     for r in raw_results:
@@ -225,24 +212,14 @@ async def process_youtube_video(
             await redis_client.set(redis_key, f"downloads:{count}|data:{hoje}")
             await redis_client.expire(redis_key, 86400)
 
-        orig_url = str(r.get("download_url", ""))
-        title_limpo = str(r.get("title", "arquivo")).replace(" ", "_")
-        url_codificada = urllib.parse.quote_plus(orig_url)
-
-        extensao = "mp3"
-        for item in request.items:
-            if item.url == r.get("url") and "mp4" in item.quality_profile:
-                extensao = "mp4"
-
-        proxy_download_url = (
-            f"{stream_endpoint}?url={url_codificada}&title={title_limpo}&ext={extensao}"
-        )
+        # A URL de download já é a stream real do Google Video
+        download_url = str(r.get("download_url", ""))
 
         results_list.append(
             DownloadResponseItem(
                 url=str(r.get("url", "")),
                 title=str(r.get("title", "Vídeo Sem Título")),
-                download_url=proxy_download_url,
+                download_url=download_url,
                 duration=int(r.get("duration", 0)),
                 thumbnail=str(r.get("thumbnail", "")),
                 status=str(r.get("status", "failed")),
@@ -258,81 +235,54 @@ async def process_youtube_video(
 
 
 @router.get("/stream")
-async def stream_youtube_bytes(
-    url: str, title: str, ext: str = "mp3"
-) -> StreamingResponse:
+async def stream_youtube_bytes(url: str, title: str = "video", ext: str = "mp3"):
+    """
+    Rota simplificada: redirecciona directamente para a URL real
+    do Google Video. O download é feito pelo browser do cliente
+    usando o IP residencial dele.
+    """
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
-    url_real = urllib.parse.unquote_plus(url)
+    url_real = url
 
     if "youtube.com" in url_real or "youtu.be" in url_real:
         try:
-            opts: dict[str, Any] = {
-                "proxy": PROXY_URL,
-                "prefer_insecure": True,
-                "format": "best",
+            ydl_opts: dict[str, Any] = {
                 "quiet": True,
                 "no_warnings": True,
+                "noplaylist": True,
                 "ignoreerrors": True,
-                "youtube_include_dash_manifest": False,
-                "youtube_include_hls_manifest": False,
+                "format": "best",
                 "allowed_extractors": ["youtube"],
+                "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
             }
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                res_dict = ydl.extract_info(url_real, download=False)
-                if res_dict:
-                    download_url_resolved = ""
-                    formats = res_dict.get("formats", [])
-                    if formats:
-                        for f in formats:
-                            u = f.get("url")
-                            if (
-                                isinstance(u, str)
-                                and u.startswith("http")
-                                and f.get("vcodec") != "none"
-                                and f.get("acodec") != "none"
-                            ):
-                                download_url_resolved = u
-                                break
-                    if not download_url_resolved:
-                        download_url_resolved = str(res_dict.get("url", ""))
-                    if download_url_resolved:
-                        url_real = download_url_resolved
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url_real, download=False)
+                if info:
+                    info_dict = cast(dict[str, Any], info)
+                    formats = info_dict.get("formats", [])
+                    for f in formats:
+                        u = f.get("url")
+                        if (
+                            isinstance(u, str)
+                            and u.startswith("http")
+                            and f.get("vcodec") != "none"
+                            and f.get("acodec") != "none"
+                        ):
+                            url_real = u
+                            break
+                    if "youtube.com" in url_real or "youtu.be" in url_real:
+                        direct = info_dict.get("url")
+                        if isinstance(direct, str) and direct.startswith("http"):
+                            url_real = direct
 
             if url_real.startswith("http://"):
                 url_real = url_real.replace("http://", "https://", 1)
-
         except Exception:
             pass
 
-    async def generate_bytes() -> AsyncIterator[bytes]:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        try:
-            async with httpx.AsyncClient(timeout=None) as client:
-                async with client.stream("GET", url_real, headers=headers) as response:
-                    if response.status_code != 200:
-                        yield b"Erro de transmissao"
-                        return
-                    async for chunk in response.aiter_bytes(chunk_size=1024 * 64):
-                        yield chunk
-        except Exception:
-            yield b"Erro de conexao"
-
-    filename = f"{title}.{ext}"
-    mime_type = "video/mp4" if ext == "mp4" else "audio/mpeg"
-    return StreamingResponse(
-        generate_bytes(),
-        media_type=mime_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        },
-    )
+    return RedirectResponse(url=url_real)
 
 
 ADMIN_TOKEN = os.getenv("ADMIN_SECRET_TOKEN", "@Matheus07052008")
