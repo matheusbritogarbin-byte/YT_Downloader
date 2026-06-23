@@ -2,7 +2,6 @@ import asyncio
 import os
 import re
 import urllib.parse
-import random
 from datetime import datetime
 from typing import Any, cast
 import httpx
@@ -222,71 +221,67 @@ async def process_youtube_video(
     return BatchDownloadResponse(results=results_list)
 
 
-INSTANCIAS_INVIDIOUS = [
-    "https://io.lol",
-    "https://tux.digital",
-    "https://yewtu.be",
-    "https://nerdvpn.de",
-]
-
-
 @router.get("/stream")
 async def stream_youtube_bytes(
-    url: str, title: str = "video", ext: str = "mp3"
+    url: str, title: str, ext: str = "mp3"
 ) -> RedirectResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
     url_real = urllib.parse.unquote_plus(url)
 
-    video_id_match = re.search(
-        r"(?:v=|\/shorts\/|youtu\.be\/)" r"([a-zA-Z0-9_-]{11})",
-        url_real,
-    )
-    if not video_id_match:
-        raise HTTPException(status_code=400, detail="ID do vídeo não localizado.")
+    # Endpoint oficial e estável da API de processamento do Cobalt tools
+    api_url = "https://cobalt.tools"
 
-    v_id = video_id_match.group(1)
+    payload = {
+        "url": url_real,
+        "videoQuality": "1080" if ext == "mp4" else "audio",
+        "downloadMode": "audio" if ext == "mp3" else "video",
+        "audioFormat": "mp3",
+    }
 
-    instancias = INSTANCIAS_INVIDIOUS.copy()
-    random.shuffle(instancias)
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    }
 
-    for base_api in instancias:
-        try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
-                resp = await client.get(f"{base_api}/api/v1/videos/{v_id}")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    adaptive_formats = data.get("adaptiveFormats", [])
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(api_url, json=payload, headers=headers)
+            if response.status_code == 200:
+                stream_resolved = response.json().get("url")
+                if stream_resolved and str(stream_resolved).startswith("http"):
+                    # Força HTTPS contra erros de Mixed Content do Chrome
+                    if str(stream_resolved).startswith("http://"):
+                        stream_resolved = str(stream_resolved).replace(
+                            "http://", "https://", 1
+                        )
 
-                    target_url = ""
-                    for fmt in adaptive_formats:
-                        if ext == "mp3" and str(fmt.get("type", "")).startswith(
-                            "audio/"
-                        ):
-                            target_url = str(fmt.get("url", ""))
-                            break
-                        elif ext == "mp4" and str(fmt.get("type", "")).startswith(
-                            "video/mp4"
-                        ):
-                            target_url = str(fmt.get("url", ""))
-                            break
+                    # Redireciona o download instantaneamente para o navegador do usuário iniciar a gravação
+                    return RedirectResponse(url=stream_resolved)
 
-                    if not target_url:
-                        format_streams = data.get("formatStreams", [])
-                        if format_streams:
-                            target_url = str(format_streams[-1].get("url", ""))
+            # Se a API principal do Cobalt der cota cheia, faz o fallback dinâmico para a Lunes API
+            elif response.status_code == 429 or response.status_code == 403:
+                fallback_url = "https://lunes.host"
+                response_fb = await client.post(
+                    fallback_url, json=payload, headers=headers
+                )
+                if response_fb.status_code == 200:
+                    stream_resolved = response_fb.json().get("url")
+                    if stream_resolved:
+                        if str(stream_resolved).startswith("http://"):
+                            stream_resolved = str(stream_resolved).replace(
+                                "http://", "https://", 1
+                            )
+                        return RedirectResponse(url=stream_resolved)
 
-                    if target_url and target_url.startswith("http"):
-                        if target_url.startswith("http://"):
-                            target_url = target_url.replace("http://", "https://", 1)
-                        return RedirectResponse(url=target_url)
-        except Exception:
-            continue
+    except Exception:
+        pass
 
     raise HTTPException(
         status_code=502,
-        detail="Servidores de fluxo ocupados. Tente novamente.",
+        detail="O servidor de processamento de mídia está congestionado. Tente novamente em 30 segundos.",
     )
 
 
