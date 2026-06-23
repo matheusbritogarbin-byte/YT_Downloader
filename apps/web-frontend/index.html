@@ -147,19 +147,19 @@
                 const urlParams = new URLSearchParams(videoUrl.split('?')[1]);
                 const vId = urlParams.get('v');
                 if (vId && vId.length === 11) {
-                    urlFormatada = `https://youtube.com/${vId}`;
+                    urlFormatada = `https://youtube.com/watch?v=${vId}`;
                 }
             } else if (videoUrl.includes('youtu.be/')) {
                 const parts = videoUrl.split('youtu.be/');
                 const idExtract = parts[1] ? parts[1].split('?')[0] : '';
                 if (idExtract.length === 11) {
-                    urlFormatada = `https://youtube.com/${idExtract}`;
+                    urlFormatada = `https://youtube.com/watch?v=${idExtract}`;
                 }
             } else if (videoUrl.includes('/shorts/')) {
                 const parts = videoUrl.split('/shorts/');
                 const idExtract = parts[1] ? parts[1].split('?')[0] : '';
                 if (idExtract.length === 11) {
-                    urlFormatada = `https://youtube.com/${idExtract}`;
+                    urlFormatada = `https://youtube.com/watch?v=${idExtract}`;
                 }
             }
 

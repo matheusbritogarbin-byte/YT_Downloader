@@ -52,9 +52,18 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
     SEM yt-dlp, SEM proxy, SEM bloqueios de CAPTCHA.
     Usa a API oficial https://www.youtube.com/oembed.
     """
-    url_limpa = url
+    url_limpa = url.strip()
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
+
+    # Extrai e normaliza o video_id para o padrão canónico do oEmbed
+    video_id_match = re.search(
+        r"(?:v=|\/shorts\/|\/embed\/|\/v\/|youtu\.be\/|\/watch\?v=)"
+        r"([a-zA-Z0-9_-]{11})",
+        url_limpa,
+    )
+    if video_id_match:
+        url_limpa = f"https://youtube.com/watch?v={video_id_match.group(1)}"
 
     title = "Vídeo Sem Título"
     duration = 0
