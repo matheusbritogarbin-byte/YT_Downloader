@@ -231,7 +231,7 @@ async def stream_youtube_bytes(
     url_real = urllib.parse.unquote_plus(url)
 
     # Endpoint oficial e estável da API de processamento do Cobalt tools
-    api_url = "https://cobalt.tools"
+    api_url = "https://api.cobalt.tools/api/json"
 
     payload = {
         "url": url_real,
