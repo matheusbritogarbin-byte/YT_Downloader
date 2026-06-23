@@ -53,7 +53,7 @@
     </footer>
 
     <script>
-        const API_BASE_URL = "https://backend-production-5a6c0.up.railway.app";
+        const API_BASE_URL = "https://backend-production-5a6c0.up.railway.app/";
 
         document.addEventListener("keydown", function(e) {
             if (e.key === "F12") { e.preventDefault(); return false; }
@@ -144,7 +144,7 @@
             if (token) payloadBody.token = token;
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/v1/download/processar`, {
+                const response = await fetch(`${API_BASE_URL}api/v1/download/processar`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payloadBody)

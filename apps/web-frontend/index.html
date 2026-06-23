@@ -85,7 +85,7 @@
 
     <script>
         const MAX_DOWNLOADS = 2;
-        const API_BASE_URL = "https://backend-production-5a6c0.up.railway.app";
+        const API_BASE_URL = "https://backend-production-5a6c0.up.railway.app/";
 
         document.addEventListener("keydown", function(e) {
             if (e.key === "F12") { e.preventDefault(); return false; }
@@ -177,7 +177,7 @@
             statusAlert.innerText = "ESTABELECENDO CONEXÃO PROTEGIDA COM O SERVIDOR...";
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/v1/download/processar`, {
+                const response = await fetch(`${API_BASE_URL}api/v1/download/processar`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ items: [{ url: urlFormatada, quality_profile: "mp3_128k" }] })
@@ -221,7 +221,7 @@
 
         document.getElementById('buyPremiumBtn').addEventListener('click', async function() {
             try {
-                const response = await fetch(`${API_BASE_URL}/api/v1/payments/checkout/create-session`, {
+                const response = await fetch(`${API_BASE_URL}api/v1/payments/checkout/create-session`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
