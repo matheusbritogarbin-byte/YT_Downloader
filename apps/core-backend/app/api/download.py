@@ -2,6 +2,7 @@ import asyncio
 import os
 import re
 import urllib.parse
+import random
 from datetime import datetime
 from typing import Any, cast
 import httpx
@@ -221,20 +222,57 @@ async def process_youtube_video(
     return BatchDownloadResponse(results=results_list)
 
 
+INSTANCIAS_COBALT = [
+    "https://cobalt.tools/api/json",
+    "https://lunes.host/api/json",
+    "https://cobalt.club/api/json",
+    "https://cobalt.moe/api/json",
+]
+
+
 @router.get("/stream")
-async def stream_youtube_bytes(url: str, title: str = "video", ext: str = "mp3"):
-    """
-    Rota legada: redirect simples.
-    O download é processado pelo Cobalt Tools no front-end.
-    """
+async def stream_youtube_bytes(
+    url: str, title: str = "video", ext: str = "mp3"
+) -> RedirectResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
-    url_real = url
-    if url_real.startswith("http://"):
-        url_real = url_real.replace("http://", "https://", 1)
+    url_real = urllib.parse.unquote_plus(url)
 
-    return RedirectResponse(url=url_real)
+    instancias_disponiveis = INSTANCIAS_COBALT.copy()
+    random.shuffle(instancias_disponiveis)
+
+    payload = {
+        "url": url_real,
+        "videoQuality": "1080" if ext == "mp4" else "audio",
+        "downloadMode": "audio" if ext == "mp3" else "video",
+        "audioFormat": "mp3",
+    }
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    }
+
+    for api_url in instancias_disponiveis:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(api_url, json=payload, headers=headers)
+                if response.status_code == 200:
+                    stream_resolved = response.json().get("url")
+                    if stream_resolved and str(stream_resolved).startswith("http"):
+                        if str(stream_resolved).startswith("http://"):
+                            stream_resolved = str(stream_resolved).replace(
+                                "http://", "https://", 1
+                            )
+                        return RedirectResponse(url=stream_resolved)
+        except Exception:
+            continue
+
+    raise HTTPException(
+        status_code=502,
+        detail="Todos os servidores de processamento estão instáveis no momento. Tente novamente em alguns instantes.",
+    )
 
 
 ADMIN_TOKEN = os.getenv("ADMIN_SECRET_TOKEN", "@Matheus07052008")
