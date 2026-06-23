@@ -204,7 +204,7 @@
                         itemCard.innerHTML = `
                             <img src="${result.thumbnail}" alt="Thumb" style="width: 100%; border: 1px solid rgba(220,38,38,0.3);" />
                             <h3 style="font-size: 13px; margin: 12px 0; color: #f8fafc; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${result.title}</h3>
-                            <a href="https://kwiateek.xyz/${encodeURIComponent(urlFormatada)}&downloadMode=audio&audioFormat=mp3" target="_self" onclick="incrementCount();" class="btn btn-green" style="text-decoration: none; display: block; text-align: center; padding: 14px; border-radius: 10px; font-weight: 700; background: #22c55e; color: #fff;">BAIXAR MP3 ÁUDIO AGORA</a>
+                            <a href="${API_BASE_URL}api/v1/download/stream?url=${encodeURIComponent(urlFormatada)}&title=${encodeURIComponent(result.title.replace(/ /g, '_'))}&ext=mp3" target="_self" onclick="incrementCount();" class="btn btn-green" style="text-decoration: none; display: block; text-align: center; padding: 14px; border-radius: 10px; font-weight: 700; background: #22c55e; color: #fff;">BAIXAR MP3 ÁUDIO AGORA</a>
                         `;
                         container.appendChild(itemCard);
                     } else {
