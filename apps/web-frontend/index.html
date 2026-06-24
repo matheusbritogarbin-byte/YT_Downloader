@@ -138,44 +138,26 @@
         async function processarDownloadNativoNoCliente(urlVideo, tipoMidia) {
             const statusAlert = document.getElementById('statusAlert');
             statusAlert.className = "status-alert status-blue";
-            statusAlert.innerText = "INICIANDO EXTRACTOR LOCAL VIA SEU IP RESIDENCIAL...";
+            statusAlert.innerText = "INICIANDO DOWNLOAD...";
 
             try {
-                const formatoAlvo = tipoMidia === "mp3" ? "audio" : "video";
-                const endpointComunidade = "https://cobalt.tools";
+                const ext = tipoMidia === "mp4" ? "mp4" : "mp3";
+                const downloadUrl = `${API_BASE_URL}api/v1/download/stream?url=${encodeURIComponent(urlVideo)}&title=${encodeURIComponent("video")}&ext=${ext}`;
 
-                const response = await fetch(endpointComunidade, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
-                    body: JSON.stringify({
-                        url: urlVideo,
-                        downloadMode: formatoAlvo,
-                        videoQuality: "1080",
-                        audioFormat: "mp3"
-                    })
-                });
+                const linkDownload = downloadUrl.startsWith("http://") ? downloadUrl.replace("http://", "https://", 1) : downloadUrl;
+                const trigger = document.createElement('a');
+                trigger.href = linkDownload;
+                trigger.target = "_self";
+                document.body.appendChild(trigger);
+                trigger.click();
+                document.body.removeChild(trigger);
 
-                if (!response.ok) throw new Error("Bloqueio de rede local detectado.");
-                const data = await response.json();
-
-                if (data && data.url) {
-                    statusAlert.className = "status-alert status-green";
-                    statusAlert.innerText = "MÍDIA EXTRAÍDA COM SUCESSO PELO SEU IP!";
-                    incrementCount();
-
-                    const linkDownload = data.url.replace("http://", "https://");
-                    const trigger = document.createElement('a');
-                    trigger.href = linkDownload;
-                    trigger.target = "_self";
-                    document.body.appendChild(trigger);
-                    trigger.click();
-                    document.body.removeChild(trigger);
-                } else {
-                    throw new Error();
-                }
+                statusAlert.className = "status-alert status-green";
+                statusAlert.innerText = "DOWNLOAD INICIADO!";
+                incrementCount();
             } catch (err) {
                 statusAlert.className = "status-alert status-red";
-                statusAlert.innerText = "FALHA NO EXTRACTOR LOCAL: " + err.message;
+                statusAlert.innerText = "FALHA NO DOWNLOAD. TENTE NOVAMENTE.";
             }
         }
 
@@ -247,7 +229,7 @@
                         itemCard.innerHTML = `
                             <img src="${result.thumbnail}" alt="Thumb" style="width: 100%; border: 1px solid rgba(220,38,38,0.3);" />
                             <h3 style="font-size: 13px; margin: 12px 0; color: #f8fafc; font-weight: 700;">${result.title}</h3>
-                            <button onclick="processarDownloadNativoNoCliente('${encodeURIComponent(urlFormatada)}', 'mp3')" class="btn btn-green" style="width: 100%; padding: 14px; border: none; border-radius: 10px; font-weight: 700; background: #22c55e; color: #fff; cursor: pointer;">BAIXAR MP3 ÁUDIO AGORA</button>
+                            <button onclick="processarDownloadNativoNoCliente('${encodeURIComponent(urlFormatada)}', 'mp3')" class="btn btn-green" style="width: 100%; padding: 14px; border: none; border-radius: 10px; font-weight: 700; background: #22c55e; color: #fff; cursor: pointer;">BAIXAR MP3 AGORA</button>
                         `;
                         container.appendChild(itemCard);
                     }
