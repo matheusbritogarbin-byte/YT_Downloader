@@ -109,7 +109,6 @@ async def processar_item_async(item: DownloadItemRequest) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(None, extrair_midia_com_seguranca, str(item.url))
     res["url"] = item.url
-    res["quality_profile"] = item.quality_profile
     return res
 
 
