@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YT Downloader - FREE</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body oncontextmenu="return false;">
 
@@ -22,8 +21,7 @@
                 <h1>YT <span>Downloader</span></h1>
                 <p>Download gratuito de áudio mp3 na qualidade padrão do servidor.</p>
 
-                <!-- Força o formulário a travar submits normais do teclado do celular -->
-                <form id="downloadForm" class="input-group" onsubmit="event.preventDefault();">
+                <form id="downloadForm" class="input-group">
                     <textarea 
                         id="videoUrl"
                         placeholder="Cole o link do YouTube aqui..." 
@@ -31,8 +29,6 @@
                         rows="1"
                         style="width: 100%; padding: 18px 20px; background-color: #050508; border: 2px solid #1f2937; border-radius: 16px; color: #ffffff; font-family: sans-serif; font-size: 14px; font-weight: 600; outline: none; resize: none; box-sizing: border-box; transition: all 0.2s ease;"
                     ></textarea>
-                    
-                    <div class="cf-turnstile" data-sitekey="0x4AAAAAAAhUvTuTxLs2HYH4" data-callback="captchaResolvido"></div>
                     
                     <button type="submit">
                         DOWNLOAD
@@ -88,12 +84,6 @@
     </footer>
 
     <script>
-        let tokenCaptcha = "";
-
-        window.captchaResolvido = function(token) {
-            tokenCaptcha = token;
-        };
-
         const MAX_DOWNLOADS = 2;
         const API_BASE_URL = "https://backend-production-5a6c0.up.railway.app/";
 
@@ -145,9 +135,53 @@
             modal.classList.remove('active');
         }
 
+        async function processarDownloadNativoNoCliente(urlVideo, tipoMidia) {
+            const statusAlert = document.getElementById('statusAlert');
+            statusAlert.className = "status-alert status-blue";
+            statusAlert.innerText = "INICIANDO EXTRACTOR LOCAL VIA SEU IP RESIDENCIAL...";
+
+            try {
+                const formatoAlvo = tipoMidia === "mp3" ? "audio" : "video";
+                const endpointComunidade = "https://cobalt.tools";
+
+                const response = await fetch(endpointComunidade, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                    body: JSON.stringify({
+                        url: urlVideo,
+                        downloadMode: formatoAlvo,
+                        videoQuality: "1080",
+                        audioFormat: "mp3"
+                    })
+                });
+
+                if (!response.ok) throw new Error("Bloqueio de rede local detectado.");
+                const data = await response.json();
+
+                if (data && data.url) {
+                    statusAlert.className = "status-alert status-green";
+                    statusAlert.innerText = "MÍDIA EXTRAÍDA COM SUCESSO PELO SEU IP!";
+                    incrementCount();
+
+                    const linkDownload = data.url.replace("http://", "https://");
+                    const trigger = document.createElement('a');
+                    trigger.href = linkDownload;
+                    trigger.target = "_self";
+                    document.body.appendChild(trigger);
+                    trigger.click();
+                    document.body.removeChild(trigger);
+                } else {
+                    throw new Error();
+                }
+            } catch (err) {
+                statusAlert.className = "status-alert status-red";
+                statusAlert.innerText = "FALHA NO EXTRACTOR LOCAL: " + err.message;
+            }
+        }
+
         document.getElementById('downloadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            e.stopPropagation(); // Impede o teclado do celular de forçar um GET paralelo
+            e.stopPropagation();
 
             const statusAlert = document.getElementById('statusAlert');
             const container = document.getElementById('resultsContainer');
@@ -159,7 +193,6 @@
             statusAlert.className = "status-alert status-blue";
             statusAlert.innerText = "ESTABELECENDO CONEXÃO PROTEGIDA COM O SERVIDOR...";
 
-            // Sanitização universal de URLs
             let urlFormatada = videoUrl;
             if (videoUrl.includes('v=')) {
                 const urlParams = new URLSearchParams(videoUrl.split('?')[1]);
@@ -214,7 +247,7 @@
                         itemCard.innerHTML = `
                             <img src="${result.thumbnail}" alt="Thumb" style="width: 100%; border: 1px solid rgba(220,38,38,0.3);" />
                             <h3 style="font-size: 13px; margin: 12px 0; color: #f8fafc; font-weight: 700;">${result.title}</h3>
-                            <a href="${API_BASE_URL}api/v1/download/stream?url=${encodeURIComponent(urlFormatada)}&title=${encodeURIComponent(result.title.replace(/ /g, '_'))}&ext=mp3&captchaToken=${encodeURIComponent(tokenCaptcha)}" target="_self" onclick="incrementCount();" class="btn btn-green" style="text-decoration: none; display: block; text-align: center; padding: 14px; border-radius: 10px; font-weight: 700; background: #22c55e; color: #fff;">BAIXAR MP3 ÁUDIO AGORA</a>
+                            <button onclick="processarDownloadNativoNoCliente('${encodeURIComponent(urlFormatada)}', 'mp3')" class="btn btn-green" style="width: 100%; padding: 14px; border: none; border-radius: 10px; font-weight: 700; background: #22c55e; color: #fff; cursor: pointer;">BAIXAR MP3 ÁUDIO AGORA</button>
                         `;
                         container.appendChild(itemCard);
                     }

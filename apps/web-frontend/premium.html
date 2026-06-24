@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YT Downloader - Premium</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body oncontextmenu="return false;">
 
@@ -32,6 +33,8 @@
                             <label style="color: #f8fafc; cursor: pointer;"><input type="radio" name="qualityProfile" value="mp3_320k" style="margin-right: 8px; accent-color: #10b981;"> MP3 Áudio - ULTRA HQ 320kbps</label>
                         </div>
                     </div>
+
+                    <div class="cf-turnstile" data-sitekey="0x4AAAAAAAhUvTuTxLs2HYH4" data-callback="captchaResolvido"></div>
                     
                     <button type="submit">
                         DOWNLOAD
@@ -102,6 +105,50 @@
             updateUI();
         }
 
+        async function processarDownloadNativoNoCliente(urlVideo, tipoMidia) {
+            const statusAlert = document.getElementById('statusAlert');
+            statusAlert.className = "status-alert status-blue";
+            statusAlert.innerText = "INICIANDO EXTRACTOR LOCAL VIA SEU IP RESIDENCIAL...";
+
+            try {
+                const formatoAlvo = tipoMidia === "mp3" ? "audio" : "video";
+                const endpointComunidade = "https://cobalt.tools";
+
+                const response = await fetch(endpointComunidade, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                    body: JSON.stringify({
+                        url: urlVideo,
+                        downloadMode: formatoAlvo,
+                        videoQuality: "1080",
+                        audioFormat: "mp3"
+                    })
+                });
+
+                if (!response.ok) throw new Error("Bloqueio de rede local detectado.");
+                const data = await response.json();
+
+                if (data && data.url) {
+                    statusAlert.className = "status-alert status-green";
+                    statusAlert.innerText = "MÍDIA EXTRAÍDA COM SUCESSO PELO SEU IP!";
+                    incrementCount();
+
+                    const linkDownload = data.url.replace("http://", "https://");
+                    const trigger = document.createElement('a');
+                    trigger.href = linkDownload;
+                    trigger.target = "_self";
+                    document.body.appendChild(trigger);
+                    trigger.click();
+                    document.body.removeChild(trigger);
+                } else {
+                    throw new Error();
+                }
+            } catch (err) {
+                statusAlert.className = "status-alert status-red";
+                statusAlert.innerText = "FALHA NO EXTRACTOR LOCAL: " + err.message;
+            }
+        }
+
         document.getElementById('downloadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const statusAlert = document.getElementById('statusAlert');
@@ -115,27 +162,20 @@
             const urlList = urlsText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
             if (urlList.length === 0) return;
 
-            // Sanitização: remove rastreadores de cada URL do lote
             const urlSanitizada = urlList.map(urlOriginal => {
                 let urlFormatada = urlOriginal;
                 if (urlOriginal.includes('v=')) {
                     const urlParams = new URLSearchParams(urlOriginal.split('?')[1]);
                     const vId = urlParams.get('v');
-                    if (vId && vId.length === 11) {
-                        urlFormatada = `https://youtube.com/watch?v=${vId}`;
-                    }
+                    if (vId && vId.length === 11) urlFormatada = `https://youtube.com/watch?v=${vId}`;
                 } else if (urlOriginal.includes('youtu.be/')) {
                     const parts = urlOriginal.split('youtu.be/');
                     const idExtract = parts[1] ? parts[1].split('?')[0] : '';
-                    if (idExtract.length === 11) {
-                        urlFormatada = `https://youtube.com/watch?v=${idExtract}`;
-                    }
+                    if (idExtract.length === 11) urlFormatada = `https://youtube.com/watch?v=${idExtract}`;
                 } else if (urlOriginal.includes('/shorts/')) {
                     const parts = urlOriginal.split('/shorts/');
                     const idExtract = parts[1] ? parts[1].split('?')[0] : '';
-                    if (idExtract.length === 11) {
-                        urlFormatada = `https://youtube.com/watch?v=${idExtract}`;
-                    }
+                    if (idExtract.length === 11) urlFormatada = `https://youtube.com/watch?v=${idExtract}`;
                 }
                 return urlFormatada;
             });
@@ -169,12 +209,11 @@
 
                         const extensaoLabel = qualityProfile.startsWith("mp4") ? "MP4 VÍDEO" : "MP3 ÁUDIO";
                         const fileExt = qualityProfile.startsWith("mp4") ? "mp4" : "mp3";
-                        const downloadUrlRedirecionado = `${API_BASE_URL}api/v1/download/stream?url=${encodeURIComponent(result.download_url || result.url)}&title=${encodeURIComponent(result.title.replace(/ /g, '_'))}&ext=${fileExt}`;
 
                         itemCard.innerHTML = `
                             <img src="${result.thumbnail}" alt="Thumb" style="width: 100%; height: 160px; object-fit: cover; border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);" />
                             <h3 style="font-size: 13px; margin: 12px 0; color: #f8fafc; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${result.title}</h3>
-                            <a href="${downloadUrlRedirecionado}" target="_self" class="btn btn-green" style="text-decoration: none; display: block; text-align: center; padding: 14px; border-radius: 10px; font-weight: 700; background: #10b981; color: #fff;">BAIXAR ${extensaoLabel} AGORA</a>
+                            <button onclick="processarDownloadNativoNoCliente('${encodeURIComponent(result.download_url || result.url)}', '${fileExt}')" class="btn btn-green" style="width: 100%; padding: 14px; border: none; border-radius: 10px; font-weight: 700; background: #10b981; color: #fff; cursor: pointer;">BAIXAR ${extensaoLabel} AGORA</button>
                         `;
                         container.appendChild(itemCard);
                     } else {
@@ -190,6 +229,8 @@
                 document.getElementById('videoUrls').value = "";
             }
         });
+
+        window.addEventListener('DOMContentLoaded', updateUI);
     </script>
 </body>
 </html>
