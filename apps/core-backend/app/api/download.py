@@ -223,15 +223,18 @@ async def process_youtube_video(
 
 @router.get("/stream")
 async def stream_youtube_bytes(
-    url: str, title: str, ext: str = "mp3"
+    url: str,
+    title: str,
+    ext: str = "mp3",
+    captchaToken: str | None = None,
 ) -> RedirectResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
     url_real = urllib.parse.unquote_plus(url)
 
-    # Endpoint oficial e estável da API de processamento do Cobalt tools
-    api_url = "https://api.cobalt.tools/api/json"
+    # Se o CAPTCHA foi resolvido, usa a API v11 oficial; senão fallback para mirror community
+    api_url = "https://api.cobalt.tools/" if captchaToken else "https://cobalt.moe"
 
     payload = {
         "url": url_real,
@@ -245,6 +248,9 @@ async def stream_youtube_bytes(
         "Content-Type": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
+
+    if captchaToken:
+        headers["cf-turnstile-response"] = captchaToken
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
