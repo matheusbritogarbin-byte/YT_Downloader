@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, cast
 import httpx
 from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import redis.asyncio as aioredis
 
@@ -163,16 +163,86 @@ async def process_youtube_video(
 @router.get("/stream")
 async def stream_youtube_bytes(
     url: str, title: str = "video", ext: str = "mp3"
-) -> RedirectResponse:
+) -> StreamingResponse:
     """
-    Redireciona para o YouTube original (sem custo de servidor).
-    O browser/app do usuário fará o download directo do Google CDN.
+    Extrai áudio/vídeo via yt-dlp e faz streaming directo para o browser.
+    Emula clientes mobile Android/iOS/tv para contornar bloqueios PoToken.
     """
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
     url_real = urllib.parse.unquote_plus(url)
-    return RedirectResponse(url=url_real)
+
+    titulo_limpo = re.sub(r"[^a-zA-Z0-9_\-]", "", title.replace(" ", "_"))
+    if not titulo_limpo:
+        titulo_limpo = "arquivo"
+
+    import yt_dlp
+
+    ydl_opts: dict[str, Any] = {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "format": "bestaudio/best" if ext == "mp3" else "best[ext=mp4]/best",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "ios", "tv"],
+                "skip": ["dash", "hls"],
+            }
+        },
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+        },
+    }
+
+    resolved_url = ""
+    try:
+        with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+            info = ydl.extract_info(url_real, download=False)
+            if info:
+                resolved_url = info.get("url", "")
+                if not resolved_url and info.get("formats"):
+                    resolved_url = info["formats"][-1].get("url", "")
+    except Exception:
+        pass
+
+    if not resolved_url or not str(resolved_url).startswith("http"):
+        raise HTTPException(
+            status_code=502,
+            detail="Stream temporariamente indisponível. Tente novamente.",
+        )
+
+    if str(resolved_url).startswith("http://"):
+        resolved_url = str(resolved_url).replace("http://", "https://", 1)
+
+    async def generate_bytes():
+        headers_client = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        try:
+            async with httpx.AsyncClient(timeout=None) as client:
+                async with client.stream(
+                    "GET", resolved_url, headers=headers_client
+                ) as response:
+                    if response.status_code == 200:
+                        async for chunk in response.aiter_bytes(chunk_size=1024 * 64):
+                            yield chunk
+        except Exception:
+            yield b""
+
+    filename = f"{titulo_limpo}.{ext}"
+    mime_type = "audio/mpeg" if ext == "mp3" else "video/mp4"
+
+    return StreamingResponse(
+        generate_bytes(),
+        media_type=mime_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
 
 
 ADMIN_TOKEN = os.getenv("ADMIN_SECRET_TOKEN", "@Matheus07052008")
