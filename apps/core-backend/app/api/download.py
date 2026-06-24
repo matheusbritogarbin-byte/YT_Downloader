@@ -190,12 +190,27 @@ async def stream_youtube_bytes(
         "format": quality_selectors.get(quality_profile, quality_selectors["mp4_max"]),
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "ios", "tv"],
+                "player_client": ["android", "ios", "tv", "web_creator"],
+                "skip": ["dash", "hls"],
             }
         },
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+            "Origin": "https://www.youtube.com",
+            "Referer": "https://www.youtube.com/",
+            "Accept-Language": "en-US,en;q=0.9,pt-BR;q=0.8,pt;q=0.7",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            "Sec-Ch-Ua-Mobile": "?1",
+            "Sec-Ch-Ua-Platform": '"Android"',
         },
+        "sleep_interval": 1,
+        "max_sleep_interval": 3,
+        "geo_bypass": True,
+        "geo_bypass_country": "US",
     }
 
     if ext == "mp3":
@@ -211,6 +226,7 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = "video"
 
+    # Estratégia 1: yt-dlp com fallback de protocolo
     try:
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
             info = ydl.extract_info(url_real, download=False) or {}
@@ -229,6 +245,33 @@ async def stream_youtube_bytes(
                 resolved_url = str(best.get("url") or "")
     except Exception:
         pass
+
+    # Estratégia 2: Cobalt como fallback se yt-dlp falhar
+    if not resolved_url or not resolved_url.startswith("http"):
+        try:
+            payload = {
+                "url": url_real,
+                "videoQuality": (
+                    "1080" if quality_profile in ("mp4_1080p", "mp4_max") else "720"
+                ),
+                "downloadMode": "audio" if ext == "mp3" else "video",
+                "audioFormat": "mp3",
+            }
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            }
+            with httpx.Client(timeout=15.0) as client:
+                response = client.post(
+                    "https://cobalt.tools", json=payload, headers=headers
+                )
+                if response.status_code == 200:
+                    cobalt_url = response.json().get("url", "")
+                    if cobalt_url and str(cobalt_url).startswith("http"):
+                        resolved_url = str(cobalt_url)
+        except Exception:
+            pass
 
     if not resolved_url or not resolved_url.startswith("http"):
         raise HTTPException(
