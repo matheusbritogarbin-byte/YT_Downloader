@@ -2,12 +2,11 @@ import asyncio
 import os
 import re
 import urllib.parse
-import random
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, cast, AsyncIterator
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import redis.asyncio as aioredis
 from app.middleware.rate_limiter import verificar_limite_requisicoes
@@ -222,26 +221,20 @@ async def process_youtube_video(
     return BatchDownloadResponse(results=results_list)
 
 
-# Lista Industrial de Instâncias Espelho de API do Cobalt mantidas pela comunidade de código aberto
-INSTANCIAS_COBALT_API = [
-    "https://cobalt.club",
-    "https://cobalt.moe",
-    "https://lunes.host",
-]
-
-
 @router.get("/stream")
 async def stream_youtube_bytes(
-    url: str, title: str, ext: str = "mp3"
-) -> RedirectResponse:
+    url: str,
+    title: str,
+    ext: str = "mp3",
+    captchaToken: str | None = None,
+) -> StreamingResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
     url_real = urllib.parse.unquote_plus(url)
 
-    # Embaralha as instâncias a cada clique para evitar gargalos de cotas em um único servidor
-    mirrors = INSTANCIAS_COBALT_API.copy()
-    random.shuffle(mirrors)
+    # Endpoint principal da API Cobalt v11
+    api_url = "https://cobalt.tools"
 
     payload = {
         "url": url_real,
@@ -256,30 +249,68 @@ async def stream_youtube_bytes(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
 
-    # Executa a varredura silenciosa nas instâncias em lote por baixo dos panos em milissegundos
-    for api_endpoint in mirrors:
+    if captchaToken:
+        headers["cf-turnstile-response"] = captchaToken
+
+    # 1. Solicita o link direto da stream descriptografada para o Cobalt
+    resolved_media_url = ""
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(api_url, json=payload, headers=headers)
+            if response.status_code == 200:
+                resolved_media_url = response.json().get("url", "")
+    except Exception:
+        pass
+
+    # Fallback dinâmico para a instância secundária estável
+    if not resolved_media_url:
         try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.post(
-                    api_endpoint, json=payload, headers=headers
+                    "https://lunes.host", json=payload, headers=headers
                 )
                 if response.status_code == 200:
-                    stream_resolved = response.json().get("url")
-                    if stream_resolved and str(stream_resolved).startswith("http"):
-                        # Higieniza Mixed Content forçando protocolo seguro HTTPS
-                        if str(stream_resolved).startswith("http://"):
-                            stream_resolved = str(stream_resolved).replace(
-                                "http://", "https://", 1
-                            )
-
-                        # Cospe o redirecionamento seguro para o Chrome do cliente fazer o download pelo IP dele
-                        return RedirectResponse(url=stream_resolved)
+                    resolved_media_url = response.json().get("url", "")
         except Exception:
-            continue
+            pass
 
-    raise HTTPException(
-        status_code=502,
-        detail="Os servidores de download estão congestionados no momento. Tente novamente em 15 segundos.",
+    if not resolved_media_url or not str(resolved_media_url).startswith("http"):
+        raise HTTPException(
+            status_code=502,
+            detail="Servidores de processamento ocupados. Tente novamente.",
+        )
+
+    if str(resolved_media_url).startswith("http://"):
+        resolved_media_url = str(resolved_media_url).replace("http://", "https://", 1)
+
+    # 2. TUNELAMENTO SEGURO: gerador assíncrono para transferir bytes sem corromper
+    async def generate_bytes() -> AsyncIterator[bytes]:
+        client_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        try:
+            async with httpx.AsyncClient(timeout=None) as client:
+                async with client.stream(
+                    "GET", resolved_media_url, headers=client_headers
+                ) as response:
+                    if response.status_code == 200:
+                        async for chunk in response.aiter_bytes(chunk_size=1024 * 64):
+                            yield chunk
+        except Exception:
+            yield b""
+
+    filename = f"{title}.{ext}"
+    mime_type = "video/mp4" if ext == "mp4" else "audio/mpeg"
+
+    return StreamingResponse(
+        generate_bytes(),
+        media_type=mime_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
     )
 
 
