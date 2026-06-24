@@ -165,17 +165,15 @@ async def stream_youtube_bytes(
     url: str, title: str = "video", ext: str = "mp3"
 ) -> StreamingResponse:
     """
-    Extrai áudio/vídeo via yt-dlp e faz streaming directo para o browser.
-    Emula clientes mobile Android/iOS/tv para contornar bloqueios PoToken.
+    Industrial: extrai áudio/vídeo via yt-dlp com seleção máxima de qualidade.
+    - Nome do ficheiro = título real do vídeo
+    - Vídeo: melhor MP4 (1080p/4K) com áudio embutido
+    - Áudio: melhor MP3 disponível
     """
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
     url_real = urllib.parse.unquote_plus(url)
-
-    titulo_limpo = re.sub(r"[^a-zA-Z0-9_\-]", "", title.replace(" ", "_"))
-    if not titulo_limpo:
-        titulo_limpo = "arquivo"
 
     import yt_dlp
 
@@ -183,7 +181,6 @@ async def stream_youtube_bytes(
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "format": "bestaudio/best" if ext == "mp3" else "best[ext=mp4]/best",
         "extractor_args": {
             "youtube": {
                 "player_client": ["android", "ios", "tv"],
@@ -195,14 +192,47 @@ async def stream_youtube_bytes(
         },
     }
 
+    if ext == "mp3":
+        ydl_opts["format"] = "bestaudio[ext=m4a]/bestaudio/best"
+        ydl_opts["postprocessors"] = [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "320",
+            }
+        ]
+    else:
+        # Para vídeo: melhor qualidade disponível no YouTube
+        # Ordem de preferência: 4K > 1080p > 720p > melhor disponível
+        # Garante que seja o vídeo real do YouTube (não versões comprimidas)
+        ydl_opts["format"] = (
+            "bestvideo[height>=2160][ext=mp4]+bestaudio[ext=m4a]/"
+            "bestvideo[height>=1080][ext=mp4]+bestaudio[ext=m4a]/"
+            "bestvideo[height>=720][ext=mp4]+bestaudio[ext=m4a]/"
+            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
+            "best[ext=mp4]/best"
+        )
+
+    info: dict[str, Any] = {}
     resolved_url = ""
+    video_title = "video"
+
     try:
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-            info = ydl.extract_info(url_real, download=False)
-            if info:
-                resolved_url = info.get("url", "")
-                if not resolved_url and info.get("formats"):
-                    resolved_url = info["formats"][-1].get("url", "")
+            info = ydl.extract_info(url_real, download=False) or {}
+            video_title = str(info.get("title", "video"))
+
+            # Selecionar o formato baseado no selector do yt-dlp
+            formats = info.get("formats", [])
+            requested_formats = info.get("requested_formats", [])
+
+            if requested_formats:
+                # Formato combinado (video+audio)
+                best = requested_formats[0]
+                resolved_url = best.get("url", "")
+            elif formats:
+                # Fallback para o melhor formato único
+                resolved_url = formats[-1].get("url", "")
     except Exception:
         pass
 
@@ -214,6 +244,24 @@ async def stream_youtube_bytes(
 
     if str(resolved_url).startswith("http://"):
         resolved_url = str(resolved_url).replace("http://", "https://", 1)
+
+    # Sanitizar nome do ficheiro: remove caracteres perigosos para URL/filename
+    filename = f"{video_title}.{ext}"
+    # Permitir apenas caracteres seguros, substituir espaços por underscore
+    filename_safe = re.sub(r"[^a-zA-Z0-9_\-\.]", "_", filename)
+    # Remover underscores consecutivos
+    filename_safe = re.sub(r"_+", "_", filename_safe).strip("_. ")
+    if not filename_safe:
+        filename_safe = f"arquivo.{ext}"
+
+    # Header RFC 5987 para suportar UTF-8 no filename
+    from urllib.parse import quote
+
+    encoded_filename = quote(filename_safe)
+    content_disposition = (
+        f'attachment; filename="{filename_safe}"; '
+        f"filename*=UTF-8''{encoded_filename}"
+    )
 
     async def generate_bytes():
         headers_client = {
@@ -230,17 +278,17 @@ async def stream_youtube_bytes(
         except Exception:
             yield b""
 
-    filename = f"{titulo_limpo}.{ext}"
     mime_type = "audio/mpeg" if ext == "mp3" else "video/mp4"
 
     return StreamingResponse(
         generate_bytes(),
         media_type=mime_type,
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": content_disposition,
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
             "Access-Control-Allow-Headers": "*",
+            "X-Content-Type-Options": "nosniff",
         },
     )
 
