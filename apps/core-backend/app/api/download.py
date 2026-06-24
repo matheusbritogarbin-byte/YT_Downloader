@@ -2,6 +2,7 @@ import asyncio
 import os
 import re
 import urllib.parse
+import random
 from datetime import datetime
 from typing import Any, cast
 import httpx
@@ -221,20 +222,26 @@ async def process_youtube_video(
     return BatchDownloadResponse(results=results_list)
 
 
+# Lista Industrial de Instâncias Espelho de API do Cobalt mantidas pela comunidade de código aberto
+INSTANCIAS_COBALT_API = [
+    "https://cobalt.club",
+    "https://cobalt.moe",
+    "https://lunes.host",
+]
+
+
 @router.get("/stream")
 async def stream_youtube_bytes(
-    url: str,
-    title: str,
-    ext: str = "mp3",
-    captchaToken: str | None = None,
+    url: str, title: str, ext: str = "mp3"
 ) -> RedirectResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
     url_real = urllib.parse.unquote_plus(url)
 
-    # Se o CAPTCHA foi resolvido, usa a API v11 oficial; senão fallback para mirror community
-    api_url = "https://api.cobalt.tools/" if captchaToken else "https://cobalt.moe"
+    # Embaralha as instâncias a cada clique para evitar gargalos de cotas em um único servidor
+    mirrors = INSTANCIAS_COBALT_API.copy()
+    random.shuffle(mirrors)
 
     payload = {
         "url": url_real,
@@ -249,45 +256,30 @@ async def stream_youtube_bytes(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
 
-    if captchaToken:
-        headers["cf-turnstile-response"] = captchaToken
-
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(api_url, json=payload, headers=headers)
-            if response.status_code == 200:
-                stream_resolved = response.json().get("url")
-                if stream_resolved and str(stream_resolved).startswith("http"):
-                    # Força HTTPS contra erros de Mixed Content do Chrome
-                    if str(stream_resolved).startswith("http://"):
-                        stream_resolved = str(stream_resolved).replace(
-                            "http://", "https://", 1
-                        )
-
-                    # Redireciona o download instantaneamente para o navegador do usuário iniciar a gravação
-                    return RedirectResponse(url=stream_resolved)
-
-            # Se a API principal do Cobalt der cota cheia, faz o fallback dinâmico para a Lunes API
-            elif response.status_code == 429 or response.status_code == 403:
-                fallback_url = "https://lunes.host"
-                response_fb = await client.post(
-                    fallback_url, json=payload, headers=headers
+    # Executa a varredura silenciosa nas instâncias em lote por baixo dos panos em milissegundos
+    for api_endpoint in mirrors:
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                response = await client.post(
+                    api_endpoint, json=payload, headers=headers
                 )
-                if response_fb.status_code == 200:
-                    stream_resolved = response_fb.json().get("url")
-                    if stream_resolved:
+                if response.status_code == 200:
+                    stream_resolved = response.json().get("url")
+                    if stream_resolved and str(stream_resolved).startswith("http"):
+                        # Higieniza Mixed Content forçando protocolo seguro HTTPS
                         if str(stream_resolved).startswith("http://"):
                             stream_resolved = str(stream_resolved).replace(
                                 "http://", "https://", 1
                             )
-                        return RedirectResponse(url=stream_resolved)
 
-    except Exception:
-        pass
+                        # Cospe o redirecionamento seguro para o Chrome do cliente fazer o download pelo IP dele
+                        return RedirectResponse(url=stream_resolved)
+        except Exception:
+            continue
 
     raise HTTPException(
         status_code=502,
-        detail="O servidor de processamento de mídia está congestionado. Tente novamente em 30 segundos.",
+        detail="Os servidores de download estão congestionados no momento. Tente novamente em 15 segundos.",
     )
 
 
