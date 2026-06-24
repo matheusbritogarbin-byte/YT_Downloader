@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YT Downloader - Premium</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body oncontextmenu="return false;">
 
@@ -34,8 +33,6 @@
                         </div>
                     </div>
 
-                    <div class="cf-turnstile" data-sitekey="0x4AAAAAAAhUvTuTxLs2HYH4" data-callback="captchaResolvido"></div>
-                    
                     <button type="submit">
                         DOWNLOAD
                     </button>
@@ -56,12 +53,6 @@
     </footer>
 
     <script>
-        let tokenCaptcha = "";
-
-        window.captchaResolvido = function(token) {
-            tokenCaptcha = token;
-        };
-
         const API_BASE_URL = "https://backend-production-5a6c0.up.railway.app/";
 
         document.addEventListener("keydown", function(e) {
