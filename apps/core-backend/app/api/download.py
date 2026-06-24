@@ -238,8 +238,15 @@ async def stream_youtube_bytes(
     if not titulo_limpo:
         titulo_limpo = "arquivo"
 
-    # Endpoint principal da API Cobalt v11
-    api_url = "https://cobalt.tools"
+    # Limpa e valida se o token do CAPTCHA realmente existe e possui conteúdo válido
+    token_valido: str | None = (
+        str(captchaToken).strip()
+        if captchaToken and str(captchaToken).strip() != ""
+        else None
+    )
+
+    # Se o token for válido, usa a API oficial com Turnstile; senão, fallback para mirror comunitário
+    api_url = "https://cobalt.tools" if token_valido else "https://cobalt.moe"
 
     payload = {
         "url": url_real,
@@ -254,8 +261,8 @@ async def stream_youtube_bytes(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
 
-    if captchaToken:
-        headers["cf-turnstile-response"] = captchaToken
+    if token_valido:
+        headers["cf-turnstile-response"] = token_valido
 
     # 1. Solicita o link direto da stream descriptografada para o Cobalt
     resolved_media_url = ""
