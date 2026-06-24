@@ -15,7 +15,8 @@
                 <h1>YT <span>Downloader</span> Premium</h1>
                 <p>Downloads ilimitados em lote. Sem cotas.</p>
 
-                <form id="downloadForm" clas                    <textarea 
+                <form id="downloadForm" class="input-group">
+                    <textarea 
                         id="videoUrls"
                         placeholder="Cole múltiplos links do YouTube aqui (um por linha)..." 
                         required
@@ -26,9 +27,8 @@
                     <div style="background-color: #050508; border: 2px solid #1f2937; border-radius: 16px; padding: 16px; text-align: left; font-family: sans-serif; font-size: 13px;">
                         <span style="color: #10b981; font-weight: 900; display: block; margin-bottom: 12px; font-size: 11px; letter-spacing: 1px;">SELECIONE O PERFIL DE QUALIDADE</span>
                         <div style="display: flex; flex-direction: column; gap: 10px;">
-                            <label style="color: #f8fafc; cursor: pointer;"><input type="radio" name="qualityProfile" value="mp4_1080p" checked style="margin-right: 8px; accent-color: #10b981;"> MP4 Vídeo - FULL HD 1080p</label>
-                            <label style="color: #f8fafc; cursor: pointer;"><input type="radio" name="qualityProfile" value="mp4_720p" style="margin-right: 8px; accent-color: #10b981;"> MP4 Vídeo - HD 720p</label>
-                            <label style="color: #f8fafc; cursor: pointer;"><input type="radio" name="qualityProfile" value="mp3_320k" style="margin-right: 8px; accent-color: #10b981;"> MP3 Áudio - ULTRA HQ 320kbps</label>
+                            <label style="color: #f8fafc; cursor: pointer;"><input type="radio" name="qualityProfile" value="mp4_max" checked style="margin-right: 8px; accent-color: #10b981;"> MP4 Vídeo - 320p</label>
+                            <label style="color: #f8fafc; cursor: pointer;"><input type="radio" name="qualityProfile" value="mp3_320k" style="margin-right: 8px; accent-color: #10b981;"> MP3 Áudio - 320kbps</label>
                         </div>
                     </div>
 
@@ -38,6 +38,12 @@
                 </form>
 
                 <div id="statusAlert" class="status-alert hidden"></div>
+                <div id="batchActions" style="margin-top: 16px; display: none;">
+                    <button id="downloadAllBtn" class="btn btn-green" style="width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: 800; background: #10b981; color: #fff; cursor: pointer; font-size: 15px;">
+                        ⬇ BAIXAR TODOS OS ARQUIVOS
+                    </button>
+                    <p id="batchCount" style="margin-top: 10px; color: #94a3b8; font-size: 12px;"></p>
+                </div>
                 <div id="resultsContainer" style="margin-top: 28px; display: flex; flex-direction: column; gap: 20px;"></div>
 
                 <div class="footer-info" style="justify-content: center; color: #10b981; border-top-color: #1f2937;">
@@ -95,14 +101,16 @@
             updateUI();
         }
 
-        async function processarDownloadNativoNoCliente(urlVideo, tipoMidia) {
+        async function processarDownloadNativoNoCliente(urlVideo, tipoMidia, tituloVideo, qualityProfile) {
             const statusAlert = document.getElementById('statusAlert');
             statusAlert.className = "status-alert status-blue";
             statusAlert.innerText = "INICIANDO DOWNLOAD...";
 
             try {
                 const ext = tipoMidia === "mp4" ? "mp4" : "mp3";
-                const downloadUrl = `${API_BASE_URL}api/v1/download/stream?url=${encodeURIComponent(urlVideo)}&title=${encodeURIComponent("video")}&ext=${ext}`;
+                const nomeArquivo = tituloVideo || "video";
+                const perfil = qualityProfile || "mp4_max";
+                const downloadUrl = `${API_BASE_URL}api/v1/download/stream?url=${encodeURIComponent(urlVideo)}&title=${encodeURIComponent(nomeArquivo)}&ext=${ext}&quality_profile=${perfil}`;
 
                 const linkDownload = downloadUrl.startsWith("http://") ? downloadUrl.replace("http://", "https://", 1) : downloadUrl;
                 const trigger = document.createElement('a');
@@ -119,6 +127,17 @@
                 statusAlert.className = "status-alert status-red";
                 statusAlert.innerText = "FALHA NO DOWNLOAD. TENTE NOVAMENTE.";
             }
+        }
+
+        function processarDownloadsEmLote(urls, tipoMidia, titulos, qualityProfile) {
+            let atraso = 0;
+            urls.forEach((url, index) => {
+                setTimeout(() => {
+                    const titulo = titulos && titulos[index] ? titulos[index] : "video";
+                    processarDownloadNativoNoCliente(url, tipoMidia, titulo, qualityProfile);
+                }, atraso);
+                atraso += 800; // 800ms entre cada download para não sobrecarregar
+            });
         }
 
         document.getElementById('downloadForm').addEventListener('submit', async function(e) {
@@ -174,6 +193,9 @@
                 statusAlert.className = "status-alert status-green";
                 statusAlert.innerText = "ARQUIVOS CONVERTIDOS COM SUCESSO!";
 
+                const urlsParaDownload = [];
+                const titulosParaDownload = [];
+
                 batchResult.results.forEach(result => {
                     const itemCard = document.createElement('div');
                     if (result.status === "success") {
@@ -182,10 +204,13 @@
                         const extensaoLabel = qualityProfile.startsWith("mp4") ? "MP4 VÍDEO" : "MP3 ÁUDIO";
                         const fileExt = qualityProfile.startsWith("mp4") ? "mp4" : "mp3";
 
+                        urlsParaDownload.push(result.download_url || result.url);
+                        titulosParaDownload.push(result.title);
+
                         itemCard.innerHTML = `
                             <img src="${result.thumbnail}" alt="Thumb" style="width: 100%; height: 160px; object-fit: cover; border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);" />
                             <h3 style="font-size: 13px; margin: 12px 0; color: #f8fafc; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${result.title}</h3>
-                            <button onclick="processarDownloadNativoNoCliente('${encodeURIComponent(result.download_url || result.url)}', '${fileExt}')" class="btn btn-green" style="width: 100%; padding: 14px; border: none; border-radius: 10px; font-weight: 700; background: #10b981; color: #fff; cursor: pointer;">BAIXAR ${extensaoLabel} AGORA</button>
+                            <button onclick="processarDownloadNativoNoCliente('${encodeURIComponent(result.download_url || result.url)}', '${fileExt}', '${encodeURIComponent(result.title).replace(/'/g, "%27")}', '${qualityProfile}')" class="btn btn-green" style="width: 100%; padding: 14px; border: none; border-radius: 10px; font-weight: 700; background: #10b981; color: #fff; cursor: pointer;">BAIXAR ${extensaoLabel} AGORA</button>
                         `;
                         container.appendChild(itemCard);
                     } else {
@@ -194,7 +219,17 @@
                         container.appendChild(itemCard);
                     }
                 });
-                     processarDownloadsEmLote(urlsParaDownload, fileExt, titulosParaDownload, qualityProfile);
+
+                // Mostrar botão de download em lote
+                const batchActions = document.getElementById('batchActions');
+                const downloadAllBtn = document.getElementById('downloadAllBtn');
+                const batchCount = document.getElementById('batchCount');
+                if (urlsParaDownload.length > 1) {
+                    batchActions.style.display = 'block';
+                    batchCount.innerText = `${urlsParaDownload.length} arquivos prontos para download. Clique no botão acima para baixar todos sequencialmente.`;
+                    downloadAllBtn.onclick = function() {
+                        const fileExt = qualityProfile.startsWith("mp4") ? "mp4" : "mp3";
+                        processarDownloadsEmLote(urlsParaDownload, fileExt, titulosParaDownload, qualityProfile);
                     };
                 } else {
                     batchActions.style.display = 'none';
