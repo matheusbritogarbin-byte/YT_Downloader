@@ -233,6 +233,11 @@ async def stream_youtube_bytes(
 
     url_real = urllib.parse.unquote_plus(url)
 
+    # Remove qualquer caractere que não seja alfanumérico padrão para não quebrar o header HTTP
+    titulo_limpo = re.sub(r"[^a-zA-Z0-9_\-]", "", title.replace(" ", "_"))
+    if not titulo_limpo:
+        titulo_limpo = "arquivo"
+
     # Endpoint principal da API Cobalt v11
     api_url = "https://cobalt.tools"
 
@@ -299,7 +304,7 @@ async def stream_youtube_bytes(
         except Exception:
             yield b""
 
-    filename = f"{title}.{ext}"
+    filename = f"{titulo_limpo}.{ext}"
     mime_type = "video/mp4" if ext == "mp4" else "audio/mpeg"
 
     return StreamingResponse(
