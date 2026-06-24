@@ -181,10 +181,10 @@ async def stream_youtube_bytes(
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo/best",
         "extractor_args": {
             "youtube": {
                 "player_client": ["android", "ios", "tv"],
+                "skip": ["dash", "hls"],
             }
         },
         "http_headers": {
@@ -201,6 +201,17 @@ async def stream_youtube_bytes(
                 "preferredquality": "320",
             }
         ]
+    else:
+        # Para vídeo: melhor qualidade disponível no YouTube
+        # Ordem de preferência: 4K > 1080p > 720p > melhor disponível
+        # Garante que seja o vídeo real do YouTube (não versões comprimidas)
+        ydl_opts["format"] = (
+            "bestvideo[height>=2160][ext=mp4]+bestaudio[ext=m4a]/"
+            "bestvideo[height>=1080][ext=mp4]+bestaudio[ext=m4a]/"
+            "bestvideo[height>=720][ext=mp4]+bestaudio[ext=m4a]/"
+            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
+            "best[ext=mp4]/best"
+        )
 
     info: dict[str, Any] = {}
     resolved_url = ""
@@ -211,10 +222,17 @@ async def stream_youtube_bytes(
             info = ydl.extract_info(url_real, download=False) or {}
             video_title = str(info.get("title", "video"))
 
-            # Melhor formato disponível (último da lista)
-            formats = info.get("formats") or []
-            if formats:
-                resolved_url = str(formats[-1].get("url") or "")
+            # Selecionar o formato baseado no selector do yt-dlp
+            formats = info.get("formats", [])
+            requested_formats = info.get("requested_formats", [])
+
+            if requested_formats:
+                # Formato combinado (video+audio)
+                best = requested_formats[0]
+                resolved_url = best.get("url", "")
+            elif formats:
+                # Fallback para o melhor formato único
+                resolved_url = formats[-1].get("url", "")
     except Exception:
         pass
 
