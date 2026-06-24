@@ -3,10 +3,10 @@ import os
 import re
 import urllib.parse
 from datetime import datetime
-from typing import Any, cast, AsyncIterator
+from typing import Any, cast
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 import redis.asyncio as aioredis
 from app.middleware.rate_limiter import verificar_limite_requisicoes
@@ -223,11 +223,8 @@ async def process_youtube_video(
 
 @router.get("/stream")
 async def stream_youtube_bytes(
-    url: str,
-    title: str,
-    ext: str = "mp3",
-    captchaToken: str | None = None,
-) -> StreamingResponse:
+    url: str, title: str = "video", ext: str = "mp3"
+) -> RedirectResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
 
@@ -238,15 +235,8 @@ async def stream_youtube_bytes(
     if not titulo_limpo:
         titulo_limpo = "arquivo"
 
-    # Limpa e valida se o token do CAPTCHA realmente existe e possui conteúdo válido
-    token_valido: str | None = (
-        str(captchaToken).strip()
-        if captchaToken and str(captchaToken).strip() != ""
-        else None
-    )
-
-    # Se o token for válido, usa a API oficial com Turnstile; senão, fallback para mirror comunitário
-    api_url = "https://cobalt.tools" if token_valido else "https://cobalt.moe"
+    # Endpoint oficial e estável da API de processamento do Cobalt tools
+    api_url = "https://cobalt.tools"
 
     payload = {
         "url": url_real,
@@ -261,68 +251,42 @@ async def stream_youtube_bytes(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
 
-    if token_valido:
-        headers["cf-turnstile-response"] = token_valido
-
-    # 1. Solicita o link direto da stream descriptografada para o Cobalt
-    resolved_media_url = ""
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(api_url, json=payload, headers=headers)
             if response.status_code == 200:
-                resolved_media_url = response.json().get("url", "")
+                stream_resolved = response.json().get("url")
+                if stream_resolved and str(stream_resolved).startswith("http"):
+                    # Força HTTPS contra erros de Mixed Content do Chrome
+                    if str(stream_resolved).startswith("http://"):
+                        stream_resolved = str(stream_resolved).replace(
+                            "http://", "https://", 1
+                        )
+
+                    # Redireciona o download instantaneamente para o navegador do usuário iniciar a gravação
+                    return RedirectResponse(url=stream_resolved)
+
+            # Se a API principal do Cobalt der cota cheia, faz o fallback dinâmico para a Lunes API
+            elif response.status_code == 429 or response.status_code == 403:
+                fallback_url = "https://lunes.host"
+                response_fb = await client.post(
+                    fallback_url, json=payload, headers=headers
+                )
+                if response_fb.status_code == 200:
+                    stream_resolved = response_fb.json().get("url")
+                    if stream_resolved:
+                        if str(stream_resolved).startswith("http://"):
+                            stream_resolved = str(stream_resolved).replace(
+                                "http://", "https://", 1
+                            )
+                        return RedirectResponse(url=stream_resolved)
+
     except Exception:
         pass
 
-    # Fallback dinâmico para a instância secundária estável
-    if not resolved_media_url:
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                response = await client.post(
-                    "https://lunes.host", json=payload, headers=headers
-                )
-                if response.status_code == 200:
-                    resolved_media_url = response.json().get("url", "")
-        except Exception:
-            pass
-
-    if not resolved_media_url or not str(resolved_media_url).startswith("http"):
-        raise HTTPException(
-            status_code=502,
-            detail="Servidores de processamento ocupados. Tente novamente.",
-        )
-
-    if str(resolved_media_url).startswith("http://"):
-        resolved_media_url = str(resolved_media_url).replace("http://", "https://", 1)
-
-    # 2. TUNELAMENTO SEGURO: gerador assíncrono para transferir bytes sem corromper
-    async def generate_bytes() -> AsyncIterator[bytes]:
-        client_headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        try:
-            async with httpx.AsyncClient(timeout=None) as client:
-                async with client.stream(
-                    "GET", resolved_media_url, headers=client_headers
-                ) as response:
-                    if response.status_code == 200:
-                        async for chunk in response.aiter_bytes(chunk_size=1024 * 64):
-                            yield chunk
-        except Exception:
-            yield b""
-
-    filename = f"{titulo_limpo}.{ext}"
-    mime_type = "video/mp4" if ext == "mp4" else "audio/mpeg"
-
-    return StreamingResponse(
-        generate_bytes(),
-        media_type=mime_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        },
+    raise HTTPException(
+        status_code=502,
+        detail="O servidor de processamento de mídia está congestionado. Tente novamente em 30 segundos.",
     )
 
 

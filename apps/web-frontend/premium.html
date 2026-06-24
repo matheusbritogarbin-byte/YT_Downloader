@@ -53,6 +53,12 @@
     </footer>
 
     <script>
+        let tokenCaptcha = "";
+
+        window.captchaResolvido = function(token) {
+            tokenCaptcha = token;
+        };
+
         const API_BASE_URL = "https://backend-production-5a6c0.up.railway.app/";
 
         document.addEventListener("keydown", function(e) {
