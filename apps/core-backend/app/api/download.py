@@ -1,12 +1,11 @@
 import asyncio
 import os
 import re
-import time
 import urllib.parse
 from datetime import datetime
 from typing import Any, cast
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 import redis.asyncio as aioredis
@@ -21,8 +20,6 @@ ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3", "100.64.0.4"]
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 redis_client: Any = cast(Any, aioredis).from_url(redis_url, decode_responses=True)
 
-CLIENT_REQUESTS: dict[str, list[float]] = {}
-
 
 class DownloadItemRequest(BaseModel):
     url: str
@@ -32,15 +29,6 @@ class DownloadItemRequest(BaseModel):
 class BatchDownloadRequest(BaseModel):
     items: list[DownloadItemRequest]
     token: str | None = None
-
-
-def _extrair_token_da_url(request: Request) -> str | None:
-    """Extrai token da query string (premium.html?token=...)"""
-    try:
-        token = request.query_params.get("token")
-        return str(token) if token and str(token).strip() else None
-    except Exception:
-        return None
 
 
 class DownloadResponseItem(BaseModel):
@@ -67,7 +55,6 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
     if "list=" in url_limpa:
         url_limpa = re.sub(r"[&?]list=[^&]+", "", url_limpa)
 
-    # Extrai e normaliza o video_id para o padrão canónico do oEmbed
     video_id_match = re.search(
         r"(?:v=|\/shorts\/|\/embed\/|\/v\/|youtu\.be\/|\/watch\?v=)"
         r"([a-zA-Z0-9_-]{11})",
@@ -127,40 +114,6 @@ async def processar_item_async(item: DownloadItemRequest) -> dict[str, Any]:
     return res
 
 
-def _is_private_ip(ip_str: str) -> bool:
-    """Verifica se o IP é privado (RFC1918, CGNAT, loopback)"""
-    try:
-        parts = ip_str.split(".")
-        first_octet = int(parts[0])
-        second_octet = int(parts[1]) if len(parts) > 1 else 0
-        # Loopback: 127.x.x.x
-        if first_octet == 127:
-            return True
-        # CGNAT / Carrier Grade NAT: 100.64.0.0 - 100.127.255.255
-        if first_octet == 100 and 64 <= second_octet <= 127:
-            return True
-        # RFC1918 privado: 10.x.x.x, 172.16.x.x, 192.168.x.x
-        if first_octet == 10:
-            return True
-        if first_octet == 172 and 16 <= second_octet <= 31:
-            return True
-        if first_octet == 192 and second_octet == 168:
-            return True
-        return False
-    except Exception:
-        return True  # Se falhar, trata como privado por segurança
-
-
-async def _extrair_token_premium(request: BatchDownloadRequest) -> bool:
-    if not request.token:
-        return False
-    try:
-        token_status = await redis_client.get(f"token:{request.token}")
-        return bool(token_status and str(token_status).startswith("premium"))
-    except Exception:
-        return False
-
-
 @router.post(
     "/processar",
     response_model=BatchDownloadResponse,
@@ -168,69 +121,9 @@ async def _extrair_token_premium(request: BatchDownloadRequest) -> bool:
 async def process_youtube_video(
     request: BatchDownloadRequest, fastapi_request: Request
 ) -> BatchDownloadResponse:
-    # Se o token veio pela query string (URL), usa ele
-    token_from_query = _extrair_token_da_url(fastapi_request)
-    if token_from_query and not request.token:
-        request.token = token_from_query
     if not request.items:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhum item enviado."
-        )
-
-    try:
-        client_host = (
-            fastapi_request.client.host if fastapi_request.client else "127.0.0.1"
-        )
-        raw_ip = fastapi_request.headers.get("x-forwarded-for", client_host)
-        ip_list = [ip.strip() for ip in str(raw_ip).split(",")]
-        client_ip = "127.0.0.1"
-        for ip in ip_list:
-            if not _is_private_ip(ip):
-                client_ip = ip
-                break
-    except Exception:
-        client_ip = "127.0.0.1"
-
-    # BYPASS TOTAL: se token premium fornecido, ignora IP, rate limit e quota
-    is_premium = client_ip in ADMIN_IPS or await _extrair_token_premium(request)
-
-    # Apenas não-premium (sem token e sem IP admin) passa pelo rate limit e quota
-    if not is_premium:
-        current_time = time.time()
-        if client_ip not in CLIENT_REQUESTS:
-            CLIENT_REQUESTS[client_ip] = []
-        CLIENT_REQUESTS[client_ip] = [
-            ts for ts in CLIENT_REQUESTS[client_ip] if current_time - ts < 60
-        ]
-        if len(CLIENT_REQUESTS[client_ip]) >= 60:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Limite de requisições excedido. Aguarde 60 segundos.",
-            )
-        CLIENT_REQUESTS[client_ip].append(current_time)
-
-    if not is_premium:
-        redis_key = f"quota:{client_ip}"
-        current_data = await redis_client.get(redis_key)
-        if current_data and str(current_data).startswith("downloads:"):
-            try:
-                parts = str(current_data).split("|")
-                count_part = parts[0].split(":")
-                count = int(count_part[1])
-                if count >= 2:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Limite diário excedido. Adquira Premium.",
-                    )
-            except HTTPException:
-                raise
-            except Exception:
-                pass
-
-    if not is_premium and len(request.items) > 1:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Downloads simultâneos são exclusivos do Plano Premium.",
         )
 
     for item in request.items:
@@ -246,22 +139,6 @@ async def process_youtube_video(
     results_list: list[DownloadResponseItem] = []
 
     for r in raw_results:
-        if r.get("status") == "success" and not is_premium:
-            redis_key = f"quota:{client_ip}"
-            current_data = await redis_client.get(redis_key)
-            count = 1
-            if current_data and str(current_data).startswith("downloads:"):
-                try:
-                    parts = str(current_data).split("|")
-                    count_part = parts[0].split(":")
-                    count = int(count_part[1]) + 1
-                except Exception:
-                    count = 1
-
-            hoje = datetime.now().strftime("%Y-%m-%d")
-            await redis_client.set(redis_key, f"downloads:{count}|data:{hoje}")
-            await redis_client.expire(redis_key, 86400)
-
         download_url = str(r.get("download_url", ""))
 
         results_list.append(
