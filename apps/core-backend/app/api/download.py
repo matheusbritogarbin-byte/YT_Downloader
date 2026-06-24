@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import time
 import urllib.parse
 from datetime import datetime
 from typing import Any, cast
@@ -9,7 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 import redis.asyncio as aioredis
-from app.middleware.rate_limiter import verificar_limite_requisicoes
 
 router = APIRouter(prefix="/download", tags=["Media Downloader"])
 
@@ -20,6 +20,8 @@ ADMIN_IPS = ["127.0.0.1", "100.64.0.2", "100.64.0.3", "100.64.0.4"]
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 redis_client: Any = cast(Any, aioredis).from_url(redis_url, decode_responses=True)
+
+CLIENT_REQUESTS: dict[str, list[float]] = {}
 
 
 class DownloadItemRequest(BaseModel):
@@ -116,10 +118,19 @@ async def processar_item_async(item: DownloadItemRequest) -> dict[str, Any]:
     return res
 
 
+async def _extrair_token_premium(request: BatchDownloadRequest) -> bool:
+    if not request.token:
+        return False
+    try:
+        token_status = await redis_client.get(f"token:{request.token}")
+        return bool(token_status and str(token_status).startswith("premium"))
+    except Exception:
+        return False
+
+
 @router.post(
     "/processar",
     response_model=BatchDownloadResponse,
-    dependencies=[Depends(verificar_limite_requisicoes)],
 )
 async def process_youtube_video(
     request: BatchDownloadRequest, fastapi_request: Request
@@ -139,12 +150,23 @@ async def process_youtube_video(
     except Exception:
         client_ip = "127.0.0.1"
 
-    is_premium = client_ip in ADMIN_IPS
+    # Verifica token premium PRIMEIRO
+    is_premium = client_ip in ADMIN_IPS or await _extrair_token_premium(request)
 
-    if not is_premium and request.token:
-        token_status = await redis_client.get(f"token:{request.token}")
-        if token_status and str(token_status).startswith("premium"):
-            is_premium = True
+    # Apenas não-premium passa pelo rate limit
+    if not is_premium:
+        current_time = time.time()
+        if client_ip not in CLIENT_REQUESTS:
+            CLIENT_REQUESTS[client_ip] = []
+        CLIENT_REQUESTS[client_ip] = [
+            ts for ts in CLIENT_REQUESTS[client_ip] if current_time - ts < 60
+        ]
+        if len(CLIENT_REQUESTS[client_ip]) >= 60:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Limite de requisições excedido. Aguarde 60 segundos.",
+            )
+        CLIENT_REQUESTS[client_ip].append(current_time)
 
     if not is_premium:
         redis_key = f"quota:{client_ip}"
@@ -157,7 +179,7 @@ async def process_youtube_video(
                 if count >= 2:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Limite diário excedido no servidor. Adquira o Plano Premium para downloads ilimitados.",
+                        detail="Limite diário excedido. Adquira Premium.",
                     )
             except HTTPException:
                 raise
@@ -199,7 +221,6 @@ async def process_youtube_video(
             await redis_client.set(redis_key, f"downloads:{count}|data:{hoje}")
             await redis_client.expire(redis_key, 86400)
 
-        # A URL de download já é a stream real do Google Video
         download_url = str(r.get("download_url", ""))
 
         results_list.append(
@@ -230,12 +251,10 @@ async def stream_youtube_bytes(
 
     url_real = urllib.parse.unquote_plus(url)
 
-    # Remove qualquer caractere que não seja alfanumérico padrão para não quebrar o header HTTP
     titulo_limpo = re.sub(r"[^a-zA-Z0-9_\-]", "", title.replace(" ", "_"))
     if not titulo_limpo:
         titulo_limpo = "arquivo"
 
-    # Endpoint oficial e estável da API de processamento do Cobalt tools
     api_url = "https://cobalt.tools"
 
     payload = {
@@ -257,16 +276,12 @@ async def stream_youtube_bytes(
             if response.status_code == 200:
                 stream_resolved = response.json().get("url")
                 if stream_resolved and str(stream_resolved).startswith("http"):
-                    # Força HTTPS contra erros de Mixed Content do Chrome
                     if str(stream_resolved).startswith("http://"):
                         stream_resolved = str(stream_resolved).replace(
                             "http://", "https://", 1
                         )
-
-                    # Redireciona o download instantaneamente para o navegador do usuário iniciar a gravação
                     return RedirectResponse(url=stream_resolved)
 
-            # Se a API principal do Cobalt der cota cheia, faz o fallback dinâmico para a Lunes API
             elif response.status_code == 429 or response.status_code == 403:
                 fallback_url = "https://lunes.host"
                 response_fb = await client.post(
