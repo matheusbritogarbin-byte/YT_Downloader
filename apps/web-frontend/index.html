@@ -135,7 +135,7 @@
             modal.classList.remove('active');
         }
 
-        async function processarDownloadNativoNoCliente(urlVideo, tipoMidia, tituloVideo, qualityProfile) {
+        async function processarDownloadNativoNoCliente(urlVideo, tipoMidia, tituloVideo) {
             const statusAlert = document.getElementById('statusAlert');
             statusAlert.className = "status-alert status-blue";
             statusAlert.innerText = "INICIANDO DOWNLOAD...";
@@ -143,8 +143,7 @@
             try {
                 const ext = tipoMidia === "mp4" ? "mp4" : "mp3";
                 const nomeArquivo = tituloVideo || "video";
-                const perfil = qualityProfile || "mp3_128k";
-                const downloadUrl = `${API_BASE_URL}api/v1/download/stream?url=${encodeURIComponent(urlVideo)}&title=${encodeURIComponent(nomeArquivo)}&ext=${ext}&quality_profile=${perfil}`;
+                const downloadUrl = `${API_BASE_URL}api/v1/download/stream?url=${encodeURIComponent(urlVideo)}&title=${encodeURIComponent(nomeArquivo)}&ext=${ext}`;
 
                 const linkDownload = downloadUrl.startsWith("http://") ? downloadUrl.replace("http://", "https://", 1) : downloadUrl;
                 const trigger = document.createElement('a');
@@ -161,17 +160,6 @@
                 statusAlert.className = "status-alert status-red";
                 statusAlert.innerText = "FALHA NO DOWNLOAD. TENTE NOVAMENTE.";
             }
-        }
-
-        function processarDownloadsEmLote(urls, tipoMidia, titulos, qualityProfile) {
-            let atraso = 0;
-            urls.forEach((url, index) => {
-                setTimeout(() => {
-                    const titulo = titulos && titulos[index] ? titulos[index] : "video";
-                    processarDownloadNativoNoCliente(url, tipoMidia, titulo, qualityProfile);
-                }, atraso);
-                atraso += 800;
-            });
         }
 
         document.getElementById('downloadForm').addEventListener('submit', async function(e) {
@@ -235,9 +223,6 @@
                 statusAlert.className = "status-alert status-green";
                 statusAlert.innerText = "ARQUIVO CONVERTIDO COM SUCESSO!";
 
-                const urlsParaDownload = [];
-                const titulosParaDownload = [];
-
                 batchResult.results.forEach(result => {
                     if (result.status === "success") {
                         const itemCard = document.createElement('div');
@@ -245,42 +230,11 @@
                         itemCard.innerHTML = `
                             <img src="${result.thumbnail}" alt="Thumb" style="width: 100%; border: 1px solid rgba(220,38,38,0.3);" />
                             <h3 style="font-size: 13px; margin: 12px 0; color: #f8fafc; font-weight: 700;">${result.title}</h3>
-                            <button onclick="processarDownloadNativoNoCliente('${encodeURIComponent(urlFormatada)}', 'mp3', '${encodeURIComponent(result.title).replace(/'/g, "%27")}', 'mp3_128k')" class="btn btn-green" style="width: 100%; padding: 14px; border: none; border-radius: 10px; font-weight: 700; background: #22c55e; color: #fff; cursor: pointer;">BAIXAR MP3 AGORA</button>
+                            <button onclick="processarDownloadNativoNoCliente('${encodeURIComponent(urlFormatada)}', 'mp3', '${encodeURIComponent(result.title).replace(/'/g, "%27")}')" class="btn btn-green" style="width: 100%; padding: 14px; border: none; border-radius: 10px; font-weight: 700; background: #22c55e; color: #fff; cursor: pointer;">BAIXAR MP3 AGORA</button>
                         `;
                         container.appendChild(itemCard);
-                        urlsParaDownload.push(result.download_url || result.url);
-                        titulosParaDownload.push(result.title);
                     }
                 });
-
-                if (urlsParaDownload.length > 1) {
-                    const batchActionsFree = document.createElement('div');
-                    batchActionsFree.id = 'batchActionsFree';
-                    batchActionsFree.style.cssText = "margin-top: 16px;";
-                    batchActionsFree.innerHTML = `
-                        <button id="downloadAllBtnFree" class="btn btn-green" style="width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: 800; background: #22c55e; color: #fff; cursor: pointer; font-size: 15px;">
-                            ⬇ BAIXAR TODOS (${urlsParaDownload.length} ARQUIVOS)
-                        </button>
-                        <p style="margin-top: 10px; color: #94a3b8; font-size: 12px;">Downloads sequenciais com 800ms de intervalo.</p>
-                    `;
-                    container.appendChild(batchActionsFree);
-
-                    setTimeout(() => {
-                        const btn = document.getElementById('downloadAllBtnFree');
-                        if (btn) {
-                            btn.onclick = function() {
-                                let atraso = 0;
-                                urlsParaDownload.forEach((url, index) => {
-                                    setTimeout(() => {
-                                        const titulo = titulosParaDownload[index] || "video";
-                                        processarDownloadNativoNoCliente(url, 'mp3', titulo, 'mp3_128k');
-                                    }, atraso);
-                                    atraso += 800;
-                                });
-                            };
-                        }
-                    }, 100);
-                }
             } catch (error) {
                 statusAlert.className = "status-alert status-red";
                 statusAlert.innerText = "FALHA NO PROCESSAMENTO MÓVEL. VERIFIQUE A CONEXÃO.";

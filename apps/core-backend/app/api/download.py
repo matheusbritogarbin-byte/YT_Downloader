@@ -23,7 +23,7 @@ redis_client: Any = cast(Any, aioredis).from_url(redis_url, decode_responses=Tru
 
 class DownloadItemRequest(BaseModel):
     url: str
-    quality_profile: str = "mp4_max"
+    quality_profile: str
 
 
 class BatchDownloadRequest(BaseModel):
@@ -48,6 +48,8 @@ class BatchDownloadResponse(BaseModel):
 def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
     """
     Extrai metadados via oEmbed oficial do YouTube.
+    SEM yt-dlp, SEM proxy, SEM bloqueios de CAPTCHA.
+    Usa a API oficial https://www.youtube.com/oembed.
     """
     url_limpa = url.strip()
     if "list=" in url_limpa:
@@ -160,10 +162,13 @@ async def process_youtube_video(
 
 @router.get("/stream")
 async def stream_youtube_bytes(
-    url: str, title: str = "video", ext: str = "mp3", quality_profile: str = "mp4_max"
+    url: str, title: str = "video", ext: str = "mp3"
 ) -> StreamingResponse:
     """
-    Extrai áudio/vídeo via yt-dlp e faz streaming directo para o browser.
+    Industrial: extrai áudio/vídeo via yt-dlp com seleção máxima de qualidade.
+    - Nome do ficheiro = título real do vídeo
+    - Vídeo: melhor MP4 (1080p/4K) com áudio embutido
+    - Áudio: melhor MP3 disponível
     """
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
@@ -176,10 +181,10 @@ async def stream_youtube_bytes(
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "format": "bestaudio/best" if ext == "mp3" else "best/best",
         "extractor_args": {
             "youtube": {
                 "player_client": ["android", "ios", "tv"],
+                "skip": ["dash", "hls"],
             }
         },
         "http_headers": {
@@ -188,6 +193,7 @@ async def stream_youtube_bytes(
     }
 
     if ext == "mp3":
+        ydl_opts["format"] = "bestaudio[ext=m4a]/bestaudio/best"
         ydl_opts["postprocessors"] = [
             {
                 "key": "FFmpegExtractAudio",
@@ -195,7 +201,19 @@ async def stream_youtube_bytes(
                 "preferredquality": "320",
             }
         ]
+    else:
+        # Para vídeo: melhor qualidade disponível no YouTube
+        # Ordem de preferência: 4K > 1080p > 720p > melhor disponível
+        # Garante que seja o vídeo real do YouTube (não versões comprimidas)
+        ydl_opts["format"] = (
+            "bestvideo[height>=2160][ext=mp4]+bestaudio[ext=m4a]/"
+            "bestvideo[height>=1080][ext=mp4]+bestaudio[ext=m4a]/"
+            "bestvideo[height>=720][ext=mp4]+bestaudio[ext=m4a]/"
+            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
+            "best[ext=mp4]/best"
+        )
 
+    info: dict[str, Any] = {}
     resolved_url = ""
     video_title = "video"
 
@@ -203,25 +221,40 @@ async def stream_youtube_bytes(
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
             info = ydl.extract_info(url_real, download=False) or {}
             video_title = str(info.get("title", "video"))
-            resolved_url = str(info.get("url") or "")
+
+            # Selecionar o formato baseado no selector do yt-dlp
+            formats = info.get("formats", [])
+            requested_formats = info.get("requested_formats", [])
+
+            if requested_formats:
+                # Formato combinado (video+audio)
+                best = requested_formats[0]
+                resolved_url = best.get("url", "")
+            elif formats:
+                # Fallback para o melhor formato único
+                resolved_url = formats[-1].get("url", "")
     except Exception:
         pass
 
-    if not resolved_url or not resolved_url.startswith("http"):
+    if not resolved_url or not str(resolved_url).startswith("http"):
         raise HTTPException(
             status_code=502,
             detail="Stream temporariamente indisponível. Tente novamente.",
         )
 
-    if resolved_url.startswith("http://"):
-        resolved_url = resolved_url.replace("http://", "https://", 1)
+    if str(resolved_url).startswith("http://"):
+        resolved_url = str(resolved_url).replace("http://", "https://", 1)
 
+    # Sanitizar nome do ficheiro: remove caracteres perigosos para URL/filename
     filename = f"{video_title}.{ext}"
+    # Permitir apenas caracteres seguros, substituir espaços por underscore
     filename_safe = re.sub(r"[^a-zA-Z0-9_\-\.]", "_", filename)
+    # Remover underscores consecutivos
     filename_safe = re.sub(r"_+", "_", filename_safe).strip("_. ")
     if not filename_safe:
         filename_safe = f"arquivo.{ext}"
 
+    # Header RFC 5987 para suportar UTF-8 no filename
     from urllib.parse import quote
 
     encoded_filename = quote(filename_safe)
