@@ -485,3 +485,17 @@ async def registrar_qualidade(
     hoje = datetime.utcnow().strftime("%Y-%m-%d")
     await redis_client.incr(f"popular_quality:{quality_profile}:{hoje}")
     return {"status": "ok"}
+
+
+@router.post("/admin/cookies/save")
+async def salvar_cookies(cookies_text: str, fastapi_request: Request) -> dict[str, str]:
+    _validar_admin_token(fastapi_request)
+    await redis_client.setex("yt_cookies", 86400, cookies_text)
+    return {"status": "ok", "mensagem": "Cookies salvos com sucesso!"}
+
+
+@router.get("/admin/cookies/get")
+async def buscar_cookies(fastapi_request: Request) -> dict[str, str]:
+    _validar_admin_token(fastapi_request)
+    cookies = await redis_client.get("yt_cookies")
+    return {"cookies": cookies or ""}

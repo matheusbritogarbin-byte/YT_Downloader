@@ -233,9 +233,10 @@
             <button onclick="mostrarSecao('stats', this)" class="active">📊 Estatísticas</button>
             <button onclick="mostrarSecao('cache', this)">💾 Cache Redis</button>
             <button onclick="mostrarSecao('ips', this)">🚦 Controle de IPs</button>
-            <button onclick="mostrarSecao('logs', this)">📋 Logs Detalhados</button>
-            <button onclick="mostrarSecao('config', this)">⚙️ Configurações</button>
-            <button onclick="mostrarSecao('queues', this)">📥 Filas</button>
+            <button onclick="mostrarSecao('logs', this)">📋 Logs</button>
+            <button onclick="mostrarSecao('cookies', this)">🍪 Cookies</button>
+            <button onclick="mostrarSecao('redis', this)">�️ Redis</button>
+            <button onclick="mostrarSecao('config', this)">⚙️ Config</button>
         </div>
 
         <!-- SEÇÃO: ESTATÍSTICAS -->
@@ -340,6 +341,24 @@
             </div>
 
             <button class="action-btn" onclick="limparLogs()" style="margin-top: 16px;">🗑️ Limpar Logs</button>
+        </div>
+
+        <!-- SEÇÃO: COOKIES -->
+        <div id="cookies" class="section">
+            <h2>🍪 Cookies do YouTube</h2>
+            <div class="alert warning">Adicione cookies para evitar bloqueio bot.</div>
+            <textarea id="cookiesTextarea" style="width:100%;min-height:200px;background:#050508;border:1px solid var(--border);color:var(--text);font-family:monospace;padding:12px;border-radius:8px;" placeholder="Cole seus cookies aqui..."></textarea>
+            <button class="action-btn green" onclick="salvarCookies()" style="margin-top:12px;">Salvar Cookies</button>
+            <button class="action-btn" onclick="carregarCookies()" style="margin-left:8px;">Carregar</button>
+            <div id="cookiesStatus"></div>
+        </div>
+
+        <!-- SEÇÃO: REDIS -->
+        <div id="redis" class="section">
+            <h2>Redis Browser</h2>
+            <button class="action-btn" onclick="listarChavesRedis()">Listar Chaves</button>
+            <button class="action-btn red" onclick="flushRedis()">FLUSHALL</button>
+            <pre id="redisOutput" style="background:#050508;padding:12px;border-radius:8px;margin-top:12px;max-height:400px;overflow-y:auto;"></pre>
         </div>
 
         <!-- SEÇÃO: CONFIGURAÇÕES -->
@@ -538,6 +557,49 @@
             if (!confirm('Tem certeza? Isso irá resetar todas as estatísticas.')) return;
             alert('Estatísticas resetadas (simulação)');
             carregarStats();
+        }
+
+        // COOKIES
+        async function salvarCookies() {
+            const cookies = document.getElementById('cookiesTextarea').value;
+            const res = await fetch(`${API_BASE}/api/v1/download/admin/cookies/save`, {
+                method: 'POST',
+                headers: { 'X-Admin-Token': ADMIN_TOKEN, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cookies_text: cookies })
+            });
+            const data = await res.json();
+            document.getElementById('cookiesStatus').innerHTML = `<div class="alert ${res.ok ? 'success' : 'error'}">${data.mensagem || data.erro || 'OK'}</div>`;
+        }
+
+        async function carregarCookies() {
+            const res = await fetch(`${API_BASE}/api/v1/download/admin/cookies/get`, {
+                headers: { 'X-Admin-Token': ADMIN_TOKEN }
+            });
+            const data = await res.json();
+            document.getElementById('cookiesTextarea').value = data.cookies || '';
+            alert('Cookies carregados!');
+        }
+
+        // REDIS
+        async function listarChavesRedis() {
+            const output = document.getElementById('redisOutput');
+            output.textContent = 'Buscando chaves...';
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/download/stats`, {
+                    headers: { 'X-Admin-Token': ADMIN_TOKEN }
+                });
+                const data = await res.json();
+                output.textContent = 'Use redis-cli para gerenciar:\n\n> KEYS *\n> GET cache:hash\n> DEL cache:hash';
+            } catch (e) {
+                output.textContent = 'Erro: ' + e.message;
+            }
+        }
+
+        async function flushRedis() {
+            if (!confirm('TEM CERTEZA? Isso irá apagar TODAS as chaves do Redis!')) return;
+            const output = document.getElementById('redisOutput');
+            output.textContent = 'Conectando ao Railway...\nUse o CLI do Railway para executar FLUSHALL.';
+            alert('Para flush completo, use: railway run redis-cli FLUSHALL');
         }
 
         // Verificar se já está logado
