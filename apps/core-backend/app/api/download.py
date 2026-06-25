@@ -40,7 +40,7 @@ class DownloadResponseItem(BaseModel):
     download_url: str
     duration: int
     thumbnail: str
-    file_size_bytes: int = 0
+    file_size_bytes: int
     status: str
     error_message: str | None = None
 
@@ -141,6 +141,9 @@ async def process_youtube_video(
 
     results_list: list[DownloadResponseItem] = []
     for r in raw_results:
+        file_size_val = r.get("file_size_bytes", 0)
+        if file_size_val is None:
+            file_size_val = 0
         results_list.append(
             DownloadResponseItem(
                 url=str(r.get("url", "")),
@@ -148,11 +151,11 @@ async def process_youtube_video(
                 download_url=str(r.get("download_url", "")),
                 duration=int(r.get("duration", 0)),
                 thumbnail=str(r.get("thumbnail", "")),
+                file_size_bytes=int(file_size_val),
                 status=str(r.get("status", "failed")),
                 error_message=(
                     str(r.get("error_message")) if r.get("error_message") else None
                 ),
-                file_size_bytes=int(r.get("file_size_bytes", 0)),
             )
         )
     return BatchDownloadResponse(results=results_list)
@@ -221,9 +224,9 @@ async def stream_youtube_bytes(
         "no_warnings": True,
         "noplaylist": True,
         "format": selected_format,
-        "extractor_args": {"youtube": {"player_client": ["android"]}},
+        "extractor_args": {"youtube": {"player_client": ["web"]}},
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         },
     }
     if postprocessors:
@@ -335,9 +338,9 @@ async def debug_formatos(url: str) -> dict[str, Any]:
         "no_warnings": True,
         "noplaylist": True,
         "format": "bestvideo+bestaudio/best",
-        "extractor_args": {"youtube": {"player_client": ["android"]}},
+        "extractor_args": {"youtube": {"player_client": ["web"]}},
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         },
     }
 
