@@ -95,11 +95,24 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
             or f"https://youtube.com{video_id}/maxresdefault.jpg"
         )
 
+    # Estimar tamanho do arquivo (aproximado)
+    tamanho_estimado = 0
+    if video_id:
+        try:
+            with httpx.Client(timeout=5.0) as client:
+                resp = client.get(f"https://www.youtube.com/watch?v={video_id}")
+                size_match = re.search(r'"contentLength":"(\d+)"', resp.text)
+                if size_match:
+                    tamanho_estimado = int(size_match.group(1))
+        except Exception:
+            pass
+
     return {
         "title": str(title),
         "download_url": video_url,
         "duration": duration,
         "thumbnail": str(thumbnail),
+        "file_size_bytes": tamanho_estimado,
         "status": "success" if video_id else "failed",
         "error_message": None if video_id else "Falha ao obter metadados via oEmbed.",
     }
@@ -310,6 +323,56 @@ def _validar_admin_token(request: Request) -> None:
 @router.get("/health")
 async def health_check() -> dict[str, str]:
     return {"status": "ok", "service": "yt-downloader", "version": "2.0"}
+
+
+@router.get("/debug/formats")
+async def debug_formatos(url: str) -> dict[str, Any]:
+    """Endpoint temporário para ver formatos disponíveis."""
+    url_real = urllib.parse.unquote_plus(url)
+    import yt_dlp
+
+    ydl_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "format": "bestvideo+bestaudio/best",
+        "extractor_args": {"youtube": {"player_client": ["android", "ios", "tv"]}},
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36"
+        },
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+            info = ydl.extract_info(url_real, download=False) or {}
+            formats = info.get("formats", [])
+
+            # Pegar apenas os 10 melhores formatos
+            top_formatos = []
+            for f in formats[-10:]:
+                top_formatos.append(
+                    {
+                        "format_id": f.get("format_id"),
+                        "ext": f.get("ext"),
+                        "resolution": f.get("resolution"),
+                        "vcodec": f.get("vcodec"),
+                        "acodec": f.get("acodec"),
+                        "filesize": f.get("filesize"),
+                        "height": f.get("height"),
+                        "width": f.get("width"),
+                    }
+                )
+
+            return {
+                "title": info.get("title"),
+                "total_formats": len(formats),
+                "top_10": top_formatos[::-1],  # inverter para mostrar melhor primeiro
+                "requested_formats": [
+                    f.get("format_id") for f in info.get("requested_formats", [])
+                ],
+            }
+    except Exception as e:
+        return {"erro": str(e)}
 
 
 @router.get("/stats")
