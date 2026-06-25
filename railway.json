@@ -13,6 +13,9 @@
     "web-frontend": {
       "source": {
         "root": "apps/web-frontend"
+      },
+      "build": {
+        "builder": "NIXPACKS"
       }
     }
   }
