@@ -40,6 +40,7 @@ class DownloadResponseItem(BaseModel):
     download_url: str
     duration: int
     thumbnail: str
+    file_size_bytes: int = 0
     status: str
     error_message: str | None = None
 
@@ -95,7 +96,6 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
             or f"https://youtube.com{video_id}/maxresdefault.jpg"
         )
 
-    # Estimar tamanho do arquivo (aproximado)
     tamanho_estimado = 0
     if video_id:
         try:
@@ -152,6 +152,7 @@ async def process_youtube_video(
                 error_message=(
                     str(r.get("error_message")) if r.get("error_message") else None
                 ),
+                file_size_bytes=int(r.get("file_size_bytes", 0)),
             )
         )
     return BatchDownloadResponse(results=results_list)
@@ -174,7 +175,6 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = title or "video"
 
-    # MAPA DE FORMATOS — AGORA USA O quality_profile DE VERDADE
     format_map: dict[str, str] = {
         "mp4_max": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best",
         "mp4_1080p": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]",
@@ -192,7 +192,6 @@ async def stream_youtube_bytes(
     }
     selected_format = format_map.get(quality_profile, "bestvideo+bestaudio/best")
 
-    # Config do FFmpeg para MP3/M4A
     postprocessors = None
     if ext == "mp3":
         quality_map = {
@@ -222,7 +221,7 @@ async def stream_youtube_bytes(
         "no_warnings": True,
         "noplaylist": True,
         "format": selected_format,
-        "extractor_args": {"youtube": {"player_client": ["android", "ios", "tv"]}},
+        "extractor_args": {"youtube": {"player_client": ["android"]}},
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
         },
@@ -336,7 +335,7 @@ async def debug_formatos(url: str) -> dict[str, Any]:
         "no_warnings": True,
         "noplaylist": True,
         "format": "bestvideo+bestaudio/best",
-        "extractor_args": {"youtube": {"player_client": ["android", "ios", "tv"]}},
+        "extractor_args": {"youtube": {"player_client": ["android"]}},
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36"
         },
@@ -366,7 +365,7 @@ async def debug_formatos(url: str) -> dict[str, Any]:
             return {
                 "title": info.get("title"),
                 "total_formats": len(formats),
-                "top_10": top_formatos[::-1],  # inverter para mostrar melhor primeiro
+                "top_10": top_formatos[::-1],
                 "requested_formats": [
                     f.get("format_id") for f in info.get("requested_formats", [])
                 ],
