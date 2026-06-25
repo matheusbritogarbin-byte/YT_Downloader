@@ -162,13 +162,14 @@ async def process_youtube_video(
 
 @router.get("/stream")
 async def stream_youtube_bytes(
-    url: str, title: str = "video", ext: str = "mp3"
+    url: str,
+    title: str = "video",
+    ext: str = "mp3",
+    quality_profile: str = "mp4_max",
 ) -> StreamingResponse:
     """
-    Industrial: extrai áudio/vídeo via yt-dlp com seleção máxima de qualidade.
-    - Nome do ficheiro = título real do vídeo
-    - Vídeo: melhor MP4 (1080p/4K) com áudio embutido
-    - Áudio: melhor MP3 disponível
+    Extrai áudio/vídeo via yt-dlp com qualidade seleccionável.
+    - quality_profile: mp4_max | mp4_1080p | mp4_720p | mp3_320k | mp3_128k
     """
     if not url:
         raise HTTPException(status_code=400, detail="URL ausente.")
@@ -177,14 +178,31 @@ async def stream_youtube_bytes(
 
     import yt_dlp
 
+    # Selectores de formato para cada perfil
+    format_selectors: dict[str, str] = {
+        "mp4_max": "bestvideo+bestaudio/best",
+        "mp4_1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+        "mp4_720p": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
+        "mp3_320k": "bestaudio/best",
+        "mp3_128k": "bestaudio/best",
+    }
+
+    selected_format = format_selectors.get(quality_profile, "bestvideo+bestaudio/best")
+
+    # Se for MP4, priorizar MP4 nos formatos seleccionados
+    if ext == "mp4" and quality_profile in ("mp4_1080p", "mp4_720p"):
+        selected_format = selected_format.replace(
+            "bestvideo", "bestvideo[ext=mp4]"
+        ).replace("bestaudio", "bestaudio[ext=m4a]")
+
     ydl_opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
+        "format": selected_format,
         "extractor_args": {
             "youtube": {
                 "player_client": ["android", "ios", "tv"],
-                "skip": ["dash", "hls"],
             }
         },
         "http_headers": {
@@ -193,25 +211,18 @@ async def stream_youtube_bytes(
     }
 
     if ext == "mp3":
-        ydl_opts["format"] = "bestaudio[ext=m4a]/bestaudio/best"
+        mp3_quality = "320" if quality_profile == "mp3_320k" else "128"
         ydl_opts["postprocessors"] = [
             {
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
-                "preferredquality": "320",
+                "preferredquality": mp3_quality,
             }
         ]
     else:
-        # Para vídeo: melhor qualidade disponível no YouTube
-        # Ordem de preferência: 4K > 1080p > 720p > melhor disponível
-        # Garante que seja o vídeo real do YouTube (não versões comprimidas)
-        ydl_opts["format"] = (
-            "bestvideo[height>=2160][ext=mp4]+bestaudio[ext=m4a]/"
-            "bestvideo[height>=1080][ext=mp4]+bestaudio[ext=m4a]/"
-            "bestvideo[height>=720][ext=mp4]+bestaudio[ext=m4a]/"
-            "bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
-            "best[ext=mp4]/best"
-        )
+        # Para vídeo no perfil máximo: permitir formatos não-MP4 se MP4 não existir
+        if quality_profile == "mp4_max":
+            ydl_opts["format"] = "bestvideo+bestaudio/best"
 
     info: dict[str, Any] = {}
     resolved_url = ""
