@@ -178,31 +178,14 @@ async def stream_youtube_bytes(
 
     import yt_dlp
 
-    # Selectores de formato para cada perfil
-    format_selectors: dict[str, str] = {
-        "mp4_max": "bestvideo+bestaudio/best",
-        "mp4_1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
-        "mp4_720p": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
-        "mp3_320k": "bestaudio/best",
-        "mp3_128k": "bestaudio/best",
-    }
-
-    selected_format = format_selectors.get(quality_profile, "bestvideo+bestaudio/best")
-
-    # Se for MP4, priorizar MP4 nos formatos seleccionados
-    if ext == "mp4" and quality_profile in ("mp4_1080p", "mp4_720p"):
-        selected_format = selected_format.replace(
-            "bestvideo", "bestvideo[ext=mp4]"
-        ).replace("bestaudio", "bestaudio[ext=m4a]")
-
     ydl_opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "format": selected_format,
         "extractor_args": {
             "youtube": {
                 "player_client": ["android", "ios", "tv"],
+                "skip": ["dash", "hls"],
             }
         },
         "http_headers": {
@@ -210,7 +193,18 @@ async def stream_youtube_bytes(
         },
     }
 
+    # Selectores de formato baseados no perfil de qualidade
+    format_map: dict[str, str] = {
+        "mp4_max": "bestvideo+bestaudio/best",
+        "mp4_1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+        "mp4_720p": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
+        "mp3_320k": "bestaudio/best",
+        "mp3_128k": "bestaudio/best",
+    }
+    selected_format = format_map.get(quality_profile, "bestvideo+bestaudio/best")
+
     if ext == "mp3":
+        ydl_opts["format"] = selected_format
         mp3_quality = "320" if quality_profile == "mp3_320k" else "128"
         ydl_opts["postprocessors"] = [
             {
@@ -220,9 +214,17 @@ async def stream_youtube_bytes(
             }
         ]
     else:
-        # Para vídeo no perfil máximo: permitir formatos não-MP4 se MP4 não existir
-        if quality_profile == "mp4_max":
-            ydl_opts["format"] = "bestvideo+bestaudio/best"
+        ydl_opts["format"] = selected_format
+        # Se o perfil pede 1080p ou 720p, forçar MP4
+        if quality_profile in ("mp4_1080p", "mp4_720p"):
+            ydl_opts["format"] = selected_format.replace(
+                "bestvideo", "bestvideo[ext=mp4]"
+            ).replace("bestaudio", "bestaudio[ext=m4a]")
+        elif quality_profile == "mp4_max":
+            # Máxima qualidade: tentar MP4 primeiro, depois qualquer formato
+            ydl_opts["format"] = (
+                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"
+            )
 
     info: dict[str, Any] = {}
     resolved_url = ""
@@ -256,21 +258,22 @@ async def stream_youtube_bytes(
     if str(resolved_url).startswith("http://"):
         resolved_url = str(resolved_url).replace("http://", "https://", 1)
 
-    # Content-Disposition com RFC 5987 para suportar UTF-8
-    # filename* (URL-encoded) é usado pelos browsers modernos
-    # filename (ASCII) é fallback para browsers antigos
-    filename_ascii = re.sub(r"[^\x20-\x7E]", "_", video_title)[:60]
-    filename_ascii = re.sub(r"_+", "_", filename_ascii).strip("_. ")
-    if not filename_ascii:
-        filename_ascii = "arquivo"
+    # Sanitizar nome do ficheiro: remove caracteres perigosos para URL/filename
+    filename = f"{video_title}.{ext}"
+    # Permitir apenas caracteres seguros, substituir espaços por underscore
+    filename_safe = re.sub(r"[^a-zA-Z0-9_\-\.]", "_", filename)
+    # Remover underscores consecutivos
+    filename_safe = re.sub(r"_+", "_", filename_safe).strip("_. ")
+    if not filename_safe:
+        filename_safe = f"arquivo.{ext}"
 
+    # Header RFC 5987 para suportar UTF-8 no filename
     from urllib.parse import quote
 
-    # URL-encode total do título para filename* (suporta acentos, espaços, símbolos)
-    encoded_filename = quote(video_title, safe="")
+    encoded_filename = quote(filename_safe)
     content_disposition = (
-        f'attachment; filename="{filename_ascii}.{ext}"; '
-        f"filename*=UTF-8''{encoded_filename}.{ext}"
+        f'attachment; filename="{filename_safe}"; '
+        f"filename*=UTF-8''{encoded_filename}"
     )
 
     async def generate_bytes():

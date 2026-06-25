@@ -135,7 +135,7 @@
             modal.classList.remove('active');
         }
 
-        async function processarDownloadNativoNoCliente(urlVideo, tipoMidia, tituloVideo, qualityProfile) {
+        async function processarDownloadNativoNoCliente(urlVideo, tipoMidia, tituloVideo) {
             const statusAlert = document.getElementById('statusAlert');
             statusAlert.className = "status-alert status-blue";
             statusAlert.innerText = "INICIANDO DOWNLOAD...";
@@ -143,8 +143,7 @@
             try {
                 const ext = tipoMidia === "mp4" ? "mp4" : "mp3";
                 const nomeArquivo = tituloVideo || "video";
-                const perfil = qualityProfile || "mp3_128k";
-                const downloadUrl = `${API_BASE_URL}api/v1/download/stream?url=${encodeURIComponent(urlVideo)}&title=${encodeURIComponent(nomeArquivo)}&ext=${ext}&quality_profile=${perfil}`;
+                const downloadUrl = `${API_BASE_URL}api/v1/download/stream?url=${encodeURIComponent(urlVideo)}&title=${encodeURIComponent(nomeArquivo)}&ext=${ext}`;
 
                 const linkDownload = downloadUrl.startsWith("http://") ? downloadUrl.replace("http://", "https://", 1) : downloadUrl;
                 const trigger = document.createElement('a');

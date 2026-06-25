@@ -104,7 +104,7 @@
             updateUI();
         }
 
-        function obterPerfilAtual() {
+        function obterPerfil() {
             const radio = document.querySelector('input[name="qualityProfile"]:checked');
             return radio ? radio.value : "mp4_max";
         }
@@ -117,7 +117,7 @@
             try {
                 const ext = tipoMidia === "mp4" ? "mp4" : "mp3";
                 const nomeArquivo = tituloVideo || "video";
-                const perfil = qualityProfile || obterPerfilAtual();
+                const perfil = qualityProfile || obterPerfil();
                 const downloadUrl = `${API_BASE_URL}api/v1/download/stream?url=${encodeURIComponent(urlVideo)}&title=${encodeURIComponent(nomeArquivo)}&ext=${ext}&quality_profile=${perfil}`;
 
                 const linkDownload = downloadUrl.startsWith("http://") ? downloadUrl.replace("http://", "https://", 1) : downloadUrl;
@@ -142,7 +142,7 @@
             urls.forEach((url, index) => {
                 setTimeout(() => {
                     const titulo = titulos && titulos[index] ? titulos[index] : "video";
-                    const perfil = qualityProfile || obterPerfilAtual();
+                    const perfil = qualityProfile || obterPerfil();
                     processarDownloadNativoNoCliente(url, tipoMidia, titulo, perfil);
                 }, atraso);
                 atraso += 800;
@@ -154,7 +154,7 @@
             const statusAlert = document.getElementById('statusAlert');
             const container = document.getElementById('resultsContainer');
             const urlsText = document.getElementById('videoUrls').value.trim();
-            const qualityProfile = obterPerfilAtual();
+            const qualityProfile = obterPerfil();
 
             statusAlert.className = "status-alert hidden";
             container.innerHTML = "";
