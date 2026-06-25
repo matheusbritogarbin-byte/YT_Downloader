@@ -42,6 +42,10 @@
                 </form>
 
                 <div id="statusAlert" class="status-alert hidden"></div>
+                <div id="loadingSpinner" class="hidden" style="margin: 20px 0; text-align: center;">
+                    <div class="spinner" style="border: 4px solid rgba(16, 185, 129, 0.2); border-top: 4px solid #10b981; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 12px;"></div>
+                    <p style="color: #94a3b8; font-size: 13px;">Processando vídeos...</p>
+                </div>
                 <div id="batchActions" style="margin-top: 16px; display: none;">
                     <button id="downloadAllBtn" class="btn btn-green" style="width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: 800; background: #10b981; color: #fff; cursor: pointer; font-size: 15px;">
                         ⬇ BAIXAR TODOS OS ARQUIVOS
@@ -107,7 +111,7 @@
 
         function obterPerfil() {
             const radio = document.querySelector('input[name="qualityProfile"]:checked');
-            return radio ? radio.value : "mp4_max";
+            return radio ? radio.value : "mp4_1080p";
         }
 
         async function processarDownloadNativoNoCliente(urlVideo, tipoMidia, tituloVideo, qualityProfile) {
@@ -153,15 +157,22 @@
         document.getElementById('downloadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const statusAlert = document.getElementById('statusAlert');
+            const loadingSpinner = document.getElementById('loadingSpinner');
             const container = document.getElementById('resultsContainer');
             const urlsText = document.getElementById('videoUrls').value.trim();
             const qualityProfile = obterPerfil();
 
-            statusAlert.className = "status-alert hidden";
-            container.innerHTML = "";
+            // Mostrar loading
+            loadingSpinner.classList.remove('hidden');
+            statusAlert.classList.remove('hidden');
+            statusAlert.className = "status-alert status-blue";
+            statusAlert.innerText = "PROCESSANDO EXTRAÇÃO MULTILINKS SIMULTÂNEA...";
 
             const urlList = urlsText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
-            if (urlList.length === 0) return;
+            if (urlList.length === 0) {
+                loadingSpinner.classList.add('hidden');
+                return;
+            }
 
             const urlSanitizada = urlList.map(urlOriginal => {
                 let urlFormatada = urlOriginal;
@@ -181,10 +192,6 @@
                 return urlFormatada;
             });
 
-            statusAlert.classList.remove('hidden');
-            statusAlert.className = "status-alert status-blue";
-            statusAlert.innerText = "PROCESSANDO EXTRAÇÃO MULTILINKS SIMULTÂNEA...";
-
             const token = getUrlToken();
             const payloadItems = urlSanitizada.map(url => ({ url: url, quality_profile: qualityProfile }));
             const payloadBody = { items: payloadItems };
@@ -200,8 +207,8 @@
                 if (!response.ok) throw new Error();
                 const batchResult = await response.json();
 
-                statusAlert.className = "status-alert status-green";
-                statusAlert.innerText = "ARQUIVOS CONVERTIDOS COM SUCESSO!";
+                statusAlert.classList.add('hidden');
+                loadingSpinner.classList.add('hidden');
 
                 const urlsParaDownload = [];
                 const titulosParaDownload = [];
@@ -246,6 +253,7 @@
                     batchActions.style.display = 'none';
                 }
             } catch (error) {
+                loadingSpinner.classList.add('hidden');
                 statusAlert.className = "status-alert status-red";
                 statusAlert.innerText = "ERRO INTERNO NO PROCESSAMENTO EM LOTE.";
             } finally {

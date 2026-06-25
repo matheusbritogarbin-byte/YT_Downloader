@@ -2,15 +2,20 @@ import asyncio
 import os
 import re
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, cast
 import httpx
 from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 import redis.asyncio as aioredis
 
 router = APIRouter(prefix="/download", tags=["Media Downloader"])
+
+# Constantes para cache e retry
+CACHE_TTL_SECONDS = 3600  # 1 hora
+MAX_RETRIES = 3
+RETRY_DELAYS = [1, 2, 4]  # segundos: 1s, 2s, 4s
 
 YOUTUBE_REGEX = re.compile(
     r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/(watch\?v=|shorts/|embed/|playlist\?list=)?([a-zA-Z0-9_-]{11})(\S*)?$"
@@ -247,28 +252,55 @@ async def stream_youtube_bytes(
                 "bestvideo", "bestvideo[ext=webm]"
             ).replace("bestaudio", "bestaudio[ext=webm]")
 
-    info: dict[str, Any] = {}
-    resolved_url = ""
-    video_title = "video"
-
+    # Cache: verificar se já temos este URL+qualidade em cache
+    cache_key = f"cache:{hash(url_real + quality_profile + ext)}"
+    cached_data: dict[str, Any] | None = None
     try:
-        with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-            info = ydl.extract_info(url_real, download=False) or {}
-            video_title = str(info.get("title", "video"))
-
-            # Selecionar o formato baseado no selector do yt-dlp
-            formats = info.get("formats", [])
-            requested_formats = info.get("requested_formats", [])
-
-            if requested_formats:
-                # Formato combinado (video+audio)
-                best = requested_formats[0]
-                resolved_url = best.get("url", "")
-            elif formats:
-                # Fallback para o melhor formato único
-                resolved_url = formats[-1].get("url", "")
+        cached = await redis_client.get(cache_key)
+        if cached:
+            cached_data = {"title": cached, "url": cached}
     except Exception:
         pass
+
+    if cached_data and cached_data.get("url"):
+        resolved_url = cached_data["url"]
+        video_title = cached_data.get("title", video_title)
+    else:
+        # Retry com backoff exponencial para contornar bloqueios temporários
+        info = {}
+        resolved_url = ""
+        video_title = "video"
+
+        for tentativa in range(MAX_RETRIES):
+            try:
+                with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+                    info = ydl.extract_info(url_real, download=False) or {}
+                    video_title = str(info.get("title", "video"))
+
+                    formats = info.get("formats", [])
+                    requested_formats = info.get("requested_formats", [])
+
+                    if requested_formats:
+                        best = requested_formats[0]
+                        resolved_url = best.get("url", "")
+                    elif formats:
+                        resolved_url = formats[-1].get("url", "")
+
+                    if resolved_url and str(resolved_url).startswith("http"):
+                        # Cachear sucesso
+                        try:
+                            await redis_client.setex(
+                                cache_key,
+                                CACHE_TTL_SECONDS,
+                                resolved_url,
+                            )
+                        except Exception:
+                            pass
+                        break
+            except Exception:
+                resolved_url = ""
+                if tentativa < MAX_RETRIES - 1:
+                    await asyncio.sleep(RETRY_DELAYS[tentativa])
 
     if not resolved_url or not str(resolved_url).startswith("http"):
         raise HTTPException(
@@ -370,3 +402,97 @@ async def admin_reset_quota(
     redis_key: str = f"quota:{body.ip}"
     await redis_client.delete(redis_key)
     return {"status": "ok", "mensagem": f"Quota do IP {body.ip} foi resetada."}
+
+
+@router.get("/health")
+async def health_check() -> dict[str, str]:
+    return {"status": "ok", "service": "yt-downloader", "version": "2.0"}
+
+
+@router.get("/stats")
+async def obter_estatisticas(fastapi_request: Request) -> dict[str, Any]:
+    _validar_admin_token(fastapi_request)
+
+    hoje = datetime.utcnow().strftime("%Y-%m-%d")
+    stats: dict[str, Any] = {
+        "data": hoje,
+        "total_downloads": 0,
+        "total_erros": 0,
+        "taxa_sucesso": "0%",
+        "cache_hits": 0,
+        "qualidades_populares": {},
+    }
+
+    try:
+        stats["total_downloads"] = int(
+            await redis_client.get(f"stats:downloads:{hoje}") or 0
+        )
+        stats["total_erros"] = int(await redis_client.get(f"stats:errors:{hoje}") or 0)
+        stats["cache_hits"] = int(
+            await redis_client.get(f"stats:cache_hits:{hoje}") or 0
+        )
+
+        # Taxa de sucesso
+        total = stats["total_downloads"] + stats["total_erros"]
+        if total > 0:
+            stats["taxa_sucesso"] = f"{(stats['total_downloads']/total)*100:.1f}%"
+
+        # Qualidades mais usadas
+        cursor = 0
+        while True:
+            cursor, keys = await redis_client.scan(
+                cursor=cursor, match="popular_quality:*", count=100
+            )
+            for key in keys:
+                quality = key.split(":")[-1]
+                count = await redis_client.get(key)
+                if count:
+                    stats["qualidades_populares"][quality] = int(count)
+            if cursor == 0:
+                break
+    except Exception:
+        pass
+
+    return stats
+
+
+@router.post("/admin/clear-cache")
+async def limpar_cache(fastapi_request: Request) -> dict[str, str]:
+    _validar_admin_token(fastapi_request)
+    cursor = 0
+    deleted = 0
+    while True:
+        cursor, keys = await redis_client.scan(
+            cursor=cursor, match="cache:*", count=100
+        )
+        if keys:
+            deleted += await redis_client.delete(*keys)
+        if cursor == 0:
+            break
+    return {"status": "ok", "mensagem": f"{deleted} itens removidos do cache."}
+
+
+@router.post("/admin/record-download")
+async def registrar_download(fastapi_request: Request) -> dict[str, str]:
+    _validar_admin_token(fastapi_request)
+    hoje = datetime.utcnow().strftime("%Y-%m-%d")
+    await redis_client.incr(f"stats:downloads:{hoje}")
+    return {"status": "ok"}
+
+
+@router.post("/admin/record-error")
+async def registrar_erro(fastapi_request: Request) -> dict[str, str]:
+    _validar_admin_token(fastapi_request)
+    hoje = datetime.utcnow().strftime("%Y-%m-%d")
+    await redis_client.incr(f"stats:errors:{hoje}")
+    return {"status": "ok"}
+
+
+@router.post("/admin/record-quality")
+async def registrar_qualidade(
+    quality_profile: str, fastapi_request: Request
+) -> dict[str, str]:
+    _validar_admin_token(fastapi_request)
+    hoje = datetime.utcnow().strftime("%Y-%m-%d")
+    await redis_client.incr(f"popular_quality:{quality_profile}:{hoje}")
+    return {"status": "ok"}
