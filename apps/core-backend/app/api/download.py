@@ -177,6 +177,24 @@ async def extrair_url_via_embed_service(url_real: str, ext: str) -> dict[str, An
     return result
 
 
+async def get_cookies_file() -> str | None:
+    """Busca cookies do Redis e retorna caminho do arquivo temporário."""
+    try:
+        cookies_text = await redis_client.get("yt_cookies")
+        if not cookies_text:
+            return None
+
+        # Criar arquivo temporário de cookies
+        import tempfile
+
+        temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+        temp_file.write(cookies_text)
+        temp_file.close()
+        return temp_file.name
+    except Exception:
+        return None
+
+
 @router.get("/stream")
 async def stream_youtube_bytes(
     url: str,
@@ -245,6 +263,12 @@ async def stream_youtube_bytes(
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         },
     }
+
+    # Usar cookies se disponíveis (resolve bloqueio "Sign in to confirm you're not a bot")
+    cookies_file = await get_cookies_file()
+    if cookies_file:
+        ydl_opts["cookiefile"] = cookies_file
+
     if postprocessors:
         ydl_opts["postprocessors"] = postprocessors
 
