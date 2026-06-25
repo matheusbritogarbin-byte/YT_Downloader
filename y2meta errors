@@ -1,0 +1,12 @@
+b3c96c0f8e2b184d.js:29 
+ POST https://embed.dlsrv.online/api/download/mp4 401 (Unauthorized)
+A	@	b3c96c0f8e2b184d.js:29
+await in A		
+onClick	@	b3c96c0f8e2b184d.js:29
+sY	@	4c86ddcf3a767f1a.js:1
+(anonymous)	@	4c86ddcf3a767f1a.js:1
+tD	@	4c86ddcf3a767f1a.js:1
+s3	@	4c86ddcf3a767f1a.js:1
+fC	@	4c86ddcf3a767f1a.js:1
+fN	@	4c86ddcf3a767f1a.js:1
+c	@	rocket-loader.min.js:1

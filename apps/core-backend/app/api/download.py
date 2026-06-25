@@ -185,7 +185,6 @@ async def stream_youtube_bytes(
         "extractor_args": {
             "youtube": {
                 "player_client": ["android", "ios", "tv"],
-                "skip": ["dash", "hls"],
             }
         },
         "http_headers": {
@@ -194,37 +193,59 @@ async def stream_youtube_bytes(
     }
 
     # Selectores de formato baseados no perfil de qualidade
+    # Inspirado em formatos suportados pelo y2meta (mp3, mp4, webm, m4a, etc)
     format_map: dict[str, str] = {
-        "mp4_max": "bestvideo+bestaudio/best",
-        "mp4_1080p": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
-        "mp4_720p": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
-        "mp3_320k": "bestaudio/best",
+        # Vídeo: prioriza MP4 (h264) pois é mais compatível, fallback para best
+        "mp4_max": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best",
+        "mp4_1080p": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+        "mp4_720p": "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]",
+        "mp4_480p": "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]",
+        # Áudio: melhor qualidade disponível
+        "mp3_320k": "bestaudio[ext=m4a]/bestaudio/best",
+        "mp3_192k": "bestaudio[ext=m4a]/bestaudio/best",
         "mp3_128k": "bestaudio/best",
+        "mp3_64k": "bestaudio/best",
+        # Formatos adicionais gratuitos (yt-dlp suporta nativamente)
+        "webm_max": "bestvideo[ext=webm]+bestaudio[ext=webm]/bestvideo+bestaudio/best",
+        "webm_1080p": "bestvideo[height<=1080][ext=webm]+bestaudio[ext=webm]/bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+        "webm_720p": "bestvideo[height<=720][ext=webm]+bestaudio[ext=webm]/bestvideo[height<=720]+bestaudio/best[height<=720]",
+        "m4a_320k": "bestaudio[ext=m4a]/bestaudio/best",
+        "m4a_128k": "bestaudio[ext=m4a]/bestaudio/best",
     }
     selected_format = format_map.get(quality_profile, "bestvideo+bestaudio/best")
 
-    if ext == "mp3":
+    if ext in ("mp3", "m4a"):
         ydl_opts["format"] = selected_format
-        mp3_quality = "320" if quality_profile == "mp3_320k" else "128"
+        # Qualidade MP3: 320, 192, 128, 64 kbps
+        mp3_quality_map = {
+            "mp3_320k": "320",
+            "mp3_192k": "192",
+            "mp3_128k": "128",
+            "mp3_64k": "64",
+            "m4a_320k": "320",
+            "m4a_128k": "128",
+        }
+        mp3_quality = mp3_quality_map.get(quality_profile, "320")
+        postprocess_codec = "mp3" if ext == "mp3" else "m4a"
         ydl_opts["postprocessors"] = [
             {
                 "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
+                "preferredcodec": postprocess_codec,
                 "preferredquality": mp3_quality,
             }
         ]
     else:
+        # Vídeo: usar selector específico
         ydl_opts["format"] = selected_format
-        # Se o perfil pede 1080p ou 720p, forçar MP4
-        if quality_profile in ("mp4_1080p", "mp4_720p"):
+        # Se o perfil pede qualidade específica, garantir extensão correta
+        if quality_profile.startswith("mp4"):
             ydl_opts["format"] = selected_format.replace(
                 "bestvideo", "bestvideo[ext=mp4]"
             ).replace("bestaudio", "bestaudio[ext=m4a]")
-        elif quality_profile == "mp4_max":
-            # Máxima qualidade: tentar MP4 primeiro, depois qualquer formato
-            ydl_opts["format"] = (
-                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"
-            )
+        elif quality_profile.startswith("webm"):
+            ydl_opts["format"] = selected_format.replace(
+                "bestvideo", "bestvideo[ext=webm]"
+            ).replace("bestaudio", "bestaudio[ext=webm]")
 
     info: dict[str, Any] = {}
     resolved_url = ""
@@ -258,22 +279,21 @@ async def stream_youtube_bytes(
     if str(resolved_url).startswith("http://"):
         resolved_url = str(resolved_url).replace("http://", "https://", 1)
 
-    # Sanitizar nome do ficheiro: remove caracteres perigosos para URL/filename
-    filename = f"{video_title}.{ext}"
-    # Permitir apenas caracteres seguros, substituir espaços por underscore
-    filename_safe = re.sub(r"[^a-zA-Z0-9_\-\.]", "_", filename)
-    # Remover underscores consecutivos
-    filename_safe = re.sub(r"_+", "_", filename_safe).strip("_. ")
-    if not filename_safe:
-        filename_safe = f"arquivo.{ext}"
+    # Content-Disposition com RFC 5987 para suportar UTF-8
+    # filename* (URL-encoded) é usado pelos browsers modernos
+    # filename (ASCII) é fallback para browsers antigos
+    filename_ascii = re.sub(r"[^\x20-\x7E]", "_", video_title)[:60]
+    filename_ascii = re.sub(r"_+", "_", filename_ascii).strip("_. ")
+    if not filename_ascii:
+        filename_ascii = "arquivo"
 
-    # Header RFC 5987 para suportar UTF-8 no filename
     from urllib.parse import quote
 
-    encoded_filename = quote(filename_safe)
+    # URL-encode total do título para filename* (suporta acentos, espaços, símbolos)
+    encoded_filename = quote(video_title, safe="")
     content_disposition = (
-        f'attachment; filename="{filename_safe}"; '
-        f"filename*=UTF-8''{encoded_filename}"
+        f'attachment; filename="{filename_ascii}.{ext}"; '
+        f"filename*=UTF-8''{encoded_filename}.{ext}"
     )
 
     async def generate_bytes():

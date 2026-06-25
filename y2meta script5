@@ -1,0 +1,923 @@
+"use strict";
+(self.webpackChunky2meta = self.webpackChunky2meta || []).push([[4642], {
+    18460: function(e) {
+        e.exports = JSON.parse('{"layout":"constrained","backgroundColor":"#080808","images":{"fallback":{"src":"/static/48ce406d21d451a3c8343494bf3d9a2a/cbe4c/quality.svg","srcSet":"/static/48ce406d21d451a3c8343494bf3d9a2a/cd0d2/quality.svg 13w,\\n/static/48ce406d21d451a3c8343494bf3d9a2a/2dc93/quality.svg 25w,\\n/static/48ce406d21d451a3c8343494bf3d9a2a/cbe4c/quality.svg 50w,\\n/static/48ce406d21d451a3c8343494bf3d9a2a/5e9cd/quality.svg 100w","sizes":"(min-width: 50px) 50px, 100vw"},"sources":[{"srcSet":"/static/48ce406d21d451a3c8343494bf3d9a2a/ddb2d/quality.webp 13w,\\n/static/48ce406d21d451a3c8343494bf3d9a2a/60790/quality.webp 25w,\\n/static/48ce406d21d451a3c8343494bf3d9a2a/2752f/quality.webp 50w,\\n/static/48ce406d21d451a3c8343494bf3d9a2a/5c5ef/quality.webp 100w","type":"image/webp","sizes":"(min-width: 50px) 50px, 100vw"}]},"width":50,"height":55}')
+    },
+    31618: function(e, t, a) {
+        a.r(t),
+        a.d(t, {
+            Head: function() {
+                return c
+            }
+        });
+        var r = a(96540)
+          , n = a(24794)
+          , l = a(32532)
+          , o = a(99354)
+          , s = a(18661);
+        t.default = () => {
+            var e, t;
+            const {0: o, 1: c} = (0,
+            r.useState)(!1)
+              , {0: m, 1: i} = (0,
+            r.useState)("en")
+              , {0: h, 1: d} = (0,
+            r.useState)("")
+              , {0: p, 1: u} = (0,
+            r.useState)(!1)
+              , {0: f, 1: b} = (0,
+            r.useState)([])
+              , {0: g, 1: y} = (0,
+            r.useState)(!1)
+              , {0: E, 1: w} = (0,
+            r.useState)(-1)
+              , v = (0,
+            r.useRef)(null)
+              , k = (0,
+            r.useRef)()
+              , x = (0,
+            r.useRef)([])
+              , L = e => {
+                i(e),
+                u(!p)
+            }
+              , N = e => new RegExp(/^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\\-]+\?v=|embed\/|v\/)?)([\w\\-]+)(\S+)?$/g).test(e)
+              , Y = (0,
+            r.useCallback)(e => {
+                const t = e.target.value;
+                if (d(t),
+                sessionStorage.setItem("inputValue", t),
+                !t.trim())
+                    return b([]),
+                    void y(!1);
+                k.current && clearTimeout(k.current),
+                k.current = setTimeout( () => {
+                    S(t)
+                }
+                , 300)
+            }
+            , []);
+            (0,
+            r.useEffect)( () => {
+                N(h) && v.current.requestSubmit()
+            }
+            , [h]);
+            const C = (0,
+            r.useCallback)(e => {
+                d(e),
+                y(!1),
+                sessionStorage.setItem("inputValue", e),
+                (0,
+                n.navigate)("/search")
+            }
+            , []);
+            (0,
+            r.useEffect)( () => {
+                const e = e => {
+                    v.current && !v.current.contains(e.target) && y(!1)
+                }
+                ;
+                return document.addEventListener("mousedown", e),
+                () => document.removeEventListener("mousedown", e)
+            }
+            , []);
+            const S = (0,
+            r.useCallback)(e => {
+                const t = `jsonp_callback_${Date.now()}`
+                  , a = `https://suggestqueries.google.com/complete/search?hl=en&ds=yt&client=youtube&hjson=t&cp=1&q=${encodeURIComponent(e)}&callback=${t}`
+                  , r = document.createElement("script");
+                return r.src = a,
+                window[t] = e => {
+                    Array.isArray(null == e ? void 0 : e[1]) ? (b(e[1].map(e => e[0])),
+                    y(!0)) : (b([]),
+                    y(!1)),
+                    document.body.removeChild(r),
+                    delete window[t]
+                }
+                ,
+                document.body.appendChild(r),
+                () => {
+                    window[t] && delete window[t],
+                    r.parentNode && r.parentNode.removeChild(r)
+                }
+            }
+            , []);
+            return (0,
+            r.useEffect)( () => () => {
+                k.current && clearTimeout(k.current)
+            }
+            , []),
+            (0,
+            r.useEffect)( () => {
+                E >= 0 && x.current[E] && x.current[E].scrollIntoView({
+                    behavior: "smooth",
+                    block: "nearest"
+                })
+            }
+            , [E]),
+            r.createElement(r.Fragment, null, r.createElement("div", {
+                className: "mx-auto md:max-w-[890px] px-3"
+            }, r.createElement("header", {
+                className: "h-[68px] flex items-center top-0"
+            }, r.createElement("div", {
+                className: "container mx-auto"
+            }, r.createElement("div", {
+                className: "flex justify-between items-center"
+            }, r.createElement("div", {
+                className: "lg:w-0 lg:flex-1"
+            }, r.createElement(n.Link, {
+                to: s.EN,
+                className: "flex items-center"
+            }, r.createElement(l.S, {
+                src: "../../images/logo.webp",
+                loading: "eager",
+                alt: "y2meta",
+                width: 50,
+                quality: 50,
+                __imageData: a(53747)
+            }), r.createElement("h1", {
+                className: "text-2xl font-semibold w-auto z-50 pl-2"
+            }, "y2meta"))), r.createElement("div", {
+                className: "md:hidden"
+            }, r.createElement("button", {
+                onClick: () => c(!o),
+                "aria-label": "Toggle Menu",
+                type: "button",
+                className: "inline-flex items-center justify-center border border-solid border-heading py-1 px-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 focus:text-gray-500 transition duration-150 ease-in-out"
+            }, r.createElement(l.S, {
+                src: "../../images/mobile.svg",
+                loading: "eager",
+                alt: "y2meta",
+                width: 25,
+                quality: 25,
+                __imageData: a(78923)
+            }))), r.createElement("nav", {
+                className: "hidden md:flex"
+            }, r.createElement(n.Link, {
+                className: "text-sm py-6\tpx-3.5 text-heading hover:bg-heading-hover hover:text-heading-clr",
+                to: s.EN
+            }, "YouTube Downloader"), r.createElement(n.Link, {
+                className: "text-sm py-6\tpx-3.5 text-heading hover:bg-heading-hover hover:text-heading-clr",
+                to: s.hJ
+            }, "YouTube to MP3"), r.createElement(n.Link, {
+                className: "text-sm py-6\tpx-3.5 text-heading hover:bg-heading-hover hover:text-heading-clr",
+                to: s.o8
+            }, "YouTube to MP4"), r.createElement("div", {
+                className: "relative top-[21px]"
+            }, r.createElement("button", {
+                className: "text-sm px-3.5 text-heading hover:text-heading-clr",
+                onClick: () => u(!p)
+            }, (null === (e = s.VF.find(e => e.lang === m)) || void 0 === e ? void 0 : e.label) || "Language"), p && r.createElement("div", {
+                className: "absolute right-0 mt-2 py-2 w-40 bg-white rounded-md shadow-lg"
+            }, s.VF.map(e => r.createElement(n.Link, {
+                key: e.lang,
+                to: e.path,
+                className: "block px-4 py-0.5 text-gray-800 hover:bg-gray-200",
+                onClick: () => L(e.lang)
+            }, e.label))))))), r.createElement("div", {
+                className: "absolute top-16 inset-x-0 transition transform origin-top-right md:!hidden z-20",
+                style: {
+                    display: o ? "block" : "none"
+                }
+            }, r.createElement("div", {
+                className: "shadow-lg"
+            }, r.createElement("div", {
+                className: "shadow-xs bg-background divide-y-2 divide-gray-50"
+            }, r.createElement("div", {
+                className: "pt-5 pb-6 px-5 space-y-6"
+            }, r.createElement("div", null, r.createElement("nav", {
+                className: "grid gap-y-8"
+            }, r.createElement(n.Link, {
+                className: "-m-3 p-3 flex items-center text-heading hover:bg-heading-hover hover:text-heading-clr transition duration-300",
+                to: s.EN
+            }, "YouTube Downloader"), r.createElement(n.Link, {
+                className: "-m-3 p-3 flex items-center text-heading hover:bg-heading-hover hover:text-heading-clr transition duration-300",
+                to: s.hJ
+            }, "YouTube to MP3"), r.createElement(n.Link, {
+                className: "-m-3 p-3 flex items-center text-heading hover:bg-heading-hover hover:text-heading-clr transition duration-300",
+                to: s.o8
+            }, "YouTube to MP4"), r.createElement("div", {
+                className: "relative"
+            }, r.createElement("button", {
+                className: "-m-3 p-3 flex items-center text-heading hover:text-heading-clr transition duration-300",
+                onClick: () => u(!p)
+            }, (null === (t = s.VF.find(e => e.lang === m)) || void 0 === t ? void 0 : t.label) || "Language"), p && r.createElement("div", {
+                className: "absolute mt-2 py-2 w-40 bg-white rounded-md shadow-lg"
+            }, s.VF.map(e => r.createElement(n.Link, {
+                key: e.lang,
+                to: e.path,
+                className: "block px-4 py-0.5 text-gray-800 hover:bg-gray-200",
+                onClick: () => L(e.lang)
+            }, e.label))))))))))), r.createElement("section", {
+                className: "bg-white p-4 border border-solid rounded border-current border-solid-clr container mx-auto"
+            }, r.createElement("div", {
+                className: "md:py-8 py-7 text-center"
+            }, r.createElement("h1", {
+                className: "mb-2.5 md:text-3xl text-2xl font-medium"
+            }, "YouTube to MP3 Converter"), r.createElement("p", null, "Convert and download YouTube videos to MP3 free"), r.createElement("div", {
+                className: "flex justify-center md:mt-9 mt-6"
+            }, r.createElement("form", {
+                ref: v,
+                onSubmit: e => {
+                    e.preventDefault(),
+                    N(h) ? (0,
+                    n.navigate)("/download") : (0,
+                    n.navigate)("/search")
+                }
+                ,
+                className: "flex w-full md:w-[600px]"
+            }, r.createElement("div", {
+                className: "relative w-full"
+            }, r.createElement("input", {
+                type: "text",
+                className: "block md:text-base\ttext-sm w-full px-4 py-2 h-[60px] border-4 !outline-none border-solid rounded border-btn-clr",
+                placeholder: "Search or paste youtube link here...",
+                onChange: Y,
+                onKeyDown: e => {
+                    f.length && ("ArrowDown" === e.key ? w(e => (e + 1) % f.length) : "ArrowUp" === e.key ? w(e => (e - 1 + f.length) % f.length) : "Enter" === e.key && E >= 0 && C(f[E]))
+                }
+                ,
+                required: !0
+            }), (null == h ? void 0 : h.trim()) && f.length > 0 && r.createElement("ul", {
+                className: "absolute left-0 z-10 mt-2 w-full max-h-[194px] overflow-auto rounded border border-gray-300 bg-white py-2 shadow-md transition-all duration-200 ease-in-out text-left " + (g ? "visible opacity-100" : "invisible opacity-0")
+            }, f.map( (e, t) => r.createElement("li", {
+                key: t,
+                ref: e => x.current[t] = e,
+                className: "cursor-pointer overflow-hidden px-4 py-2 hover:bg-gray-200 hover:text-black " + (t === E ? "bg-gray-200 text-black" : ""),
+                onClick: () => C(e)
+            }, e)))), r.createElement("button", {
+                className: "md:px-4 rounded-r md:text-base\ttext-sm md:w-[120px] w-[78px] h-[60px] -ml-1 text-white bg-btn-clr",
+                type: "submit"
+            }, "Search"))), r.createElement("p", {
+                className: "text-xs\tp-1.5 text-btn-border md:mb-6 mb-5"
+            }, "By using our service you are accepting our", r.createElement(n.Link, {
+                className: "text-heading-clr",
+                to: "/terms-condition/"
+            }, " Term and Conditions.")))), r.createElement("section", null, r.createElement("div", {
+                className: "md:py-8 py-6 text-center"
+            }, r.createElement("h2", {
+                className: "font-bold text-xl my-2.5 md:text-2xl"
+            }, "Best YouTube to MP3 Converter"), r.createElement("h3", {
+                className: "text-lg text-justify\tmy-2.5"
+            }, "Y2meta is a fast and user-friendly YouTube to MP3 converter that simplifies the process of transforming YouTube videos into high-quality MP3 files. Our popular tool offers an effortless way to convert and download your favorite YouTube videos to MP3, completely free of charge. With Y2meta, you can choose from multiple quality options, including 64kbps, 128kbps, 192kbps, and up to 320kbps, ensuring your audio meets your preferences."), r.createElement("h3", {
+                className: "text-lg text-justify\tmy-2.5"
+            }, "This versatile YouTube to MP3 converter operates smoothly across all devices, whether you’re using a desktop, laptop, tablet, or smartphone. No additional software or applications are required—just paste the YouTube URL, follow a few simple steps, and your MP3 file will be ready for download in just seconds. Y2meta guarantees a safe and secure conversion process, protecting your device from any potential threats while delivering high-quality audio files. Enjoy a seamless experience with Y2meta, where converting YouTube videos to MP3 is as easy as ever.")), r.createElement("hr", {
+                className: "w-48 h-px mx-auto bg-gray-200 border-0 rounded dark:bg-gray-700"
+            }), r.createElement("div", {
+                className: "py-8 md:flex md:justify-between"
+            }, r.createElement("div", {
+                className: "md:w-[43%]"
+            }, r.createElement("h4", {
+                className: "text-lg my-1.5"
+            }, r.createElement("strong", null, "How to Convert YouTube Video to MP3 Online for Free")), r.createElement("ol", {
+                className: "m-0 pl-4 list-decimal text-justify"
+            }, r.createElement("li", {
+                className: "mb-2.5"
+            }, "Start by pasting the YouTube video URL into the search box or entering relevant keywords to find the video you want."), r.createElement("li", {
+                className: "mb-2.5"
+            }, "After the video appears, select your preferred MP3 quality option."), r.createElement("li", {
+                className: "mb-2.5"
+            }, 'Press the "Download" button to start the conversion process.'), r.createElement("li", {
+                className: "mb-2.5"
+            }, 'Wait a few seconds for the conversion to complete. Once it’s done, click the final "Download" button to save your MP3 file.'))), r.createElement("div", {
+                className: "md:w-[43%]"
+            }, r.createElement("h5", {
+                className: "text-lg my-1.5"
+            }, r.createElement("strong", null, "Y2meta Advantages")), r.createElement("ul", {
+                className: "m-0 pl-4 list-disc text-justify"
+            }, r.createElement("li", {
+                className: "mb-2.5"
+            }, "Convert and download MP3 files from YouTube without any limitations."), r.createElement("li", {
+                className: "mb-2.5"
+            }, "Enjoy a hassle-free experience with no need to install any software or register."), r.createElement("li", {
+                className: "mb-2.5"
+            }, "Y2meta ensures a secure and safe conversion process."), r.createElement("li", {
+                className: "mb-2.5"
+            }, "Works smoothly across all browsers and devices."), r.createElement("li", {
+                className: "mb-2.5"
+            }, "Convert YouTube videos to MP3 with high-quality audio, completely free of charge.")))), r.createElement("hr", {
+                className: "w-48 h-px mx-auto bg-gray-200 border-0 rounded dark:bg-gray-700"
+            }), r.createElement("div", {
+                className: "md:py-8 py-6 text-center grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-5"
+            }, r.createElement("div", null, r.createElement(l.S, {
+                src: "../../images/video.svg",
+                loading: "eager",
+                alt: "y2meta video",
+                width: 50,
+                quality: 50,
+                __imageData: a(36679)
+            }), r.createElement("div", {
+                className: "px-6 py-4"
+            }, r.createElement("h3", {
+                className: "text-2xl text-heading-clr font-bold mb-2"
+            }, "Effortless and Quick Conversion"), r.createElement("p", null, 'Downloading MP3 files from YouTube is a breeze with Y2meta. Simply enter the YouTube URL, click "Download," and your converted MP3 file will be ready in seconds.'))), r.createElement("div", null, r.createElement(l.S, {
+                src: "../../images/gift.svg",
+                loading: "eager",
+                alt: "y2meta gift",
+                width: 50,
+                quality: 50,
+                __imageData: a(89163)
+            }), r.createElement("div", {
+                className: "px-6 py-4"
+            }, r.createElement("h3", {
+                className: "text-2xl text-heading-clr font-bold mb-2"
+            }, "High-Quality MP3 Formats"), r.createElement("p", null, "Y2meta provides MP3 conversions in a range of high-quality formats, including 64kbps, 128kbps, 192kbps, 256kbps, and 320kbps. Select the quality that suits you best and download your files."))), r.createElement("div", null, r.createElement(l.S, {
+                src: "../../images/download.svg",
+                loading: "eager",
+                alt: "y2meta download",
+                width: 50,
+                quality: 50,
+                __imageData: a(46564)
+            }), r.createElement("div", {
+                className: "px-6 py-4"
+            }, r.createElement("h3", {
+                className: "text-2xl text-heading-clr font-bold mb-2"
+            }, "Unlimited Free Conversions"), r.createElement("p", null, "Convert any YouTube video to MP3 without limitations and at no cost. There's no need for additional software or apps—Y2meta makes it easy and free."))), r.createElement("div", null, r.createElement(l.S, {
+                src: "../../images/quality.svg",
+                loading: "eager",
+                alt: "y2meta quality",
+                width: 50,
+                quality: 50,
+                __imageData: a(18460)
+            }), r.createElement("div", {
+                className: "px-6 py-4"
+            }, r.createElement("h3", {
+                className: "text-2xl text-heading-clr font-bold mb-2"
+            }, "Compatible with All Platforms"), r.createElement("p", null, "Y2meta is compatible with all devices, including PCs, tablets, iPhones, and Android phones, and supports all major browsers like Chrome, Microsoft Edge, Firefox, and Opera.")))), r.createElement("hr", {
+                className: "w-48 h-px mx-auto bg-gray-200 border-0 rounded dark:bg-gray-700"
+            }), r.createElement("div", {
+                className: "md:py-8 py-6"
+            }, r.createElement("h2", {
+                className: "font-bold text-center text-xl my-2.5 md:text-2xl"
+            }, "FAQ"), r.createElement("h3", {
+                className: "mt-2.5 font-semibold"
+            }, "Is Y2meta Free to Use?"), r.createElement("p", null, "Yes, Y2meta is completely free for downloading MP3 files from YouTube. No account registration is required."), r.createElement("h3", {
+                className: "mt-2.5 font-semibold"
+            }, "Can I Use Y2meta on All Devices?"), r.createElement("p", null, "Absolutely! Y2meta is compatible with all types of devices, including computers, mobile phones, and tablets."), r.createElement("h3", {
+                className: "mt-2.5 font-semibold"
+            }, "How Do I Download MP3 from YouTube Videos?"), r.createElement("p", null, "Copy the YouTube video link you want to convert."), r.createElement("p", null, "Paste the URL into the search box."), r.createElement("p", null, 'Press "Search," then select MP3 and click the "Convert" button.'), r.createElement("p", null, 'Wait a few seconds for the conversion to complete, then click the "Download" button.'), r.createElement("h3", {
+                className: "mt-2.5 font-semibold"
+            }, "Are There Limits on MP3 Downloads from YouTube?"), r.createElement("p", null, "You can convert and download MP3s from YouTube without any restrictions. Y2meta offers unlimited conversions at no cost."), r.createElement("h3", {
+                className: "mt-2.5 font-semibold"
+            }, "Do I Need to Install Any Software or Extensions?"), r.createElement("p", null, "No, Y2meta operates entirely online. You don’t need to install any software or browser extensions—just use a web browser and a stable internet connection."), r.createElement("h3", {
+                className: "mt-2.5 font-semibold"
+            }, "Is It Safe to Use Y2meta for MP3 Downloads?"), r.createElement("p", null, "Yes, Y2meta is secure, featuring SSL encryption to protect your downloads. We regularly monitor and update our converter to ensure it remains safe from viruses and malware.")))), r.createElement("footer", null, r.createElement("div", {
+                className: "md:py-14 py-5\ttext-sm\ttext-center border-solid\tborder-y border-inherit"
+            }, r.createElement("p", {
+                className: "mb-5"
+            }, "@", (new Date).getFullYear(), " y2meta"), r.createElement("ul", {
+                className: "flex justify-center"
+            }, r.createElement("li", null, r.createElement(n.Link, {
+                className: "mx-2",
+                to: "/about-us/"
+            }, "About")), r.createElement("li", null, r.createElement(n.Link, {
+                className: "mx-2",
+                to: "/contact/"
+            }, "Contact")), r.createElement("li", null, r.createElement(n.Link, {
+                className: "mx-2",
+                to: "/terms-condition/"
+            }, "Terms of Service")), r.createElement("li", null, r.createElement(n.Link, {
+                className: "mx-2",
+                to: "/privacy-policy/"
+            }, "Privacy Policy"))))))
+        }
+        ;
+        const c = () => r.createElement(r.Fragment, null, r.createElement("html", {
+            lang: "en"
+        }), r.createElement("title", null, "Convert YouTube to MP3 - Y2meta"), r.createElement("meta", {
+            name: "description",
+            content: "Y2meta is a free YouTube to MP3 converter that lets you convert YouTube videos to high-quality MP3 files (up to 320kbps). No software installation is required—just paste the URL and convert. Enjoy fast and high-quality audio conversions at no cost."
+        }), r.createElement("meta", {
+            name: "robots",
+            content: "index,follow"
+        }), r.createElement("meta", {
+            property: "og:type",
+            content: "website"
+        }), r.createElement("meta", {
+            property: "og:site_name",
+            content: "Y2meta"
+        }), r.createElement("meta", {
+            property: "og:locale",
+            content: "en"
+        }), r.createElement("meta", {
+            property: "og:title",
+            content: "Convert YouTube to MP3 - Y2meta"
+        }), r.createElement("meta", {
+            property: "og:description",
+            content: "Y2meta is a free YouTube to MP3 converter that lets you convert YouTube videos to high-quality MP3 files (up to 320kbps). No software installation is required—just paste the URL and convert. Enjoy fast and high-quality audio conversions at no cost."
+        }), r.createElement("meta", {
+            property: "og:image",
+            content: "https://y2meta.is/logo.webp"
+        }), r.createElement("meta", {
+            property: "og:url",
+            content: `${s.C1}${s.hJ}`
+        }), r.createElement("link", {
+            rel: "icon",
+            href: "https://y2meta.is/logo.webp"
+        }), r.createElement("link", {
+            rel: "canonical",
+            href: `${s.C1}${s.hJ}`
+        }), r.createElement(o.Xd, null))
+    },
+    36679: function(e) {
+        e.exports = JSON.parse('{"layout":"constrained","backgroundColor":"#080808","images":{"fallback":{"src":"/static/9b2860bcc4e45564d866d801f685d171/03b81/video.svg","srcSet":"/static/9b2860bcc4e45564d866d801f685d171/36ab3/video.svg 13w,\\n/static/9b2860bcc4e45564d866d801f685d171/36821/video.svg 25w,\\n/static/9b2860bcc4e45564d866d801f685d171/03b81/video.svg 50w,\\n/static/9b2860bcc4e45564d866d801f685d171/d1f62/video.svg 100w","sizes":"(min-width: 50px) 50px, 100vw"},"sources":[{"srcSet":"/static/9b2860bcc4e45564d866d801f685d171/b530d/video.webp 13w,\\n/static/9b2860bcc4e45564d866d801f685d171/e2ebf/video.webp 25w,\\n/static/9b2860bcc4e45564d866d801f685d171/65ca6/video.webp 50w,\\n/static/9b2860bcc4e45564d866d801f685d171/48f27/video.webp 100w","type":"image/webp","sizes":"(min-width: 50px) 50px, 100vw"}]},"width":50,"height":43}')
+    },
+    46564: function(e) {
+        e.exports = JSON.parse('{"layout":"constrained","backgroundColor":"#080808","images":{"fallback":{"src":"/static/50eadc73c585534edfde8666935e0b38/ed5ae/download.svg","srcSet":"/static/50eadc73c585534edfde8666935e0b38/36ab3/download.svg 13w,\\n/static/50eadc73c585534edfde8666935e0b38/36821/download.svg 25w,\\n/static/50eadc73c585534edfde8666935e0b38/ed5ae/download.svg 50w,\\n/static/50eadc73c585534edfde8666935e0b38/efb91/download.svg 100w","sizes":"(min-width: 50px) 50px, 100vw"},"sources":[{"srcSet":"/static/50eadc73c585534edfde8666935e0b38/b530d/download.webp 13w,\\n/static/50eadc73c585534edfde8666935e0b38/e2ebf/download.webp 25w,\\n/static/50eadc73c585534edfde8666935e0b38/e0be9/download.webp 50w,\\n/static/50eadc73c585534edfde8666935e0b38/421db/download.webp 100w","type":"image/webp","sizes":"(min-width: 50px) 50px, 100vw"}]},"width":50,"height":43.99999999999999}')
+    },
+    53747: function(e) {
+        e.exports = JSON.parse('{"layout":"constrained","backgroundColor":"#f85838","images":{"fallback":{"src":"/static/45506bea94b72b99e0308af5dd620f99/af6b6/logo.webp","srcSet":"/static/45506bea94b72b99e0308af5dd620f99/62727/logo.webp 13w,\\n/static/45506bea94b72b99e0308af5dd620f99/266b2/logo.webp 25w,\\n/static/45506bea94b72b99e0308af5dd620f99/af6b6/logo.webp 50w","sizes":"(min-width: 50px) 50px, 100vw"},"sources":[]},"width":50,"height":50}')
+    },
+    78923: function(e) {
+        e.exports = JSON.parse('{"layout":"constrained","backgroundColor":"#080808","images":{"fallback":{"src":"/static/204fd887c2400a7c4f195800c49920c1/2c9de/mobile.svg","srcSet":"/static/204fd887c2400a7c4f195800c49920c1/4067d/mobile.svg 6w,\\n/static/204fd887c2400a7c4f195800c49920c1/17221/mobile.svg 12w,\\n/static/204fd887c2400a7c4f195800c49920c1/2c9de/mobile.svg 24w","sizes":"(min-width: 24px) 24px, 100vw"},"sources":[{"srcSet":"/static/204fd887c2400a7c4f195800c49920c1/69d0e/mobile.webp 6w,\\n/static/204fd887c2400a7c4f195800c49920c1/dcc3e/mobile.webp 12w,\\n/static/204fd887c2400a7c4f195800c49920c1/b2bf9/mobile.webp 24w","type":"image/webp","sizes":"(min-width: 24px) 24px, 100vw"}]},"width":25,"height":25}')
+    },
+    89163: function(e) {
+        e.exports = JSON.parse('{"layout":"constrained","backgroundColor":"#080808","images":{"fallback":{"src":"/static/de440384daf37c13dc6821cbad4efab3/968ba/gift.svg","srcSet":"/static/de440384daf37c13dc6821cbad4efab3/8c054/gift.svg 13w,\\n/static/de440384daf37c13dc6821cbad4efab3/36821/gift.svg 25w,\\n/static/de440384daf37c13dc6821cbad4efab3/968ba/gift.svg 50w,\\n/static/de440384daf37c13dc6821cbad4efab3/17810/gift.svg 100w","sizes":"(min-width: 50px) 50px, 100vw"},"sources":[{"srcSet":"/static/de440384daf37c13dc6821cbad4efab3/b4154/gift.webp 13w,\\n/static/de440384daf37c13dc6821cbad4efab3/e2ebf/gift.webp 25w,\\n/static/de440384daf37c13dc6821cbad4efab3/ac735/gift.webp 50w,\\n/static/de440384daf37c13dc6821cbad4efab3/49914/gift.webp 100w","type":"image/webp","sizes":"(min-width: 50px) 50px, 100vw"}]},"width":50,"height":45}')
+    },
+    99354: function(e, t, a) {
+        a.d(t, {
+            Gr: function() {
+                return s
+            },
+            Xd: function() {
+                return o
+            },
+            yU: function() {
+                return l
+            }
+        });
+        var r = a(96540)
+          , n = a(18661);
+        const l = () => r.createElement(r.Fragment, null, r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "en",
+            href: `${n.C1}${n.EN}`
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "en-us",
+            href: "https://us-y2meta.com/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "en-gb",
+            href: "https://uk-y2meta.com/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "de",
+            href: "https://y2meta.pro/de/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "es",
+            href: "https://y2meta.pro/es/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "fr",
+            href: "https://y2meta.pro/fr/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "hi",
+            href: "https://y2meta.pro/hi/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "id",
+            href: "https://y2meta.pro/id/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "it",
+            href: "https://y2meta.pro/it/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ja",
+            href: "https://y2meta.pro/ja/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ko",
+            href: "https://y2meta.pro/ko/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "my",
+            href: "https://y2meta.pro/my/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ms",
+            href: "https://y2meta.pro/ms/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "tl-ph",
+            href: "https://y2meta.pro/tl-ph/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "pt",
+            href: `${n.C1}${n.PT}`
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ru",
+            href: "https://y2meta.pro/ru/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "th",
+            href: "https://y2meta.pro/th/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "tr",
+            href: "https://y2meta.pro/tr/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "vi",
+            href: "https://y2meta.pro/vi/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "zh-cn",
+            href: "https://y2meta.pro/zh-cn/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "zh-tw",
+            href: "https://y2meta.pro/zh-tw/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ar",
+            href: "https://y2meta.pro/ar/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "bn",
+            href: "https://y2meta.pro/bn/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "pl",
+            href: "https://y2meta.pro/pl/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "el",
+            href: "https://y2meta.pro/el/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "lv",
+            href: "https://y2meta.pro/lv/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "lt",
+            href: "https://y2meta.pro/lt/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "nl",
+            href: "https://y2meta.pro/nl/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "sv",
+            href: "https://y2meta.pro/sv/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "sk",
+            href: "https://y2meta.pro/sk/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "sl",
+            href: "https://y2meta.pro/sl/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "da",
+            href: "https://y2meta.pro/da/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "fi",
+            href: "https://y2meta.pro/fi/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "bg",
+            href: "https://y2meta.pro/bg/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "cs",
+            href: "https://y2meta.pro/cs/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "et",
+            href: "https://y2meta.pro/et/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "hu",
+            href: "https://y2meta.pro/hu/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ro",
+            href: "https://y2meta.pro/ro/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "x-default",
+            href: `${n.C1}${n.EN}`
+        }))
+          , o = () => r.createElement(r.Fragment, null, r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "en",
+            href: `${n.C1}${n.hJ}`
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "en-us",
+            href: "https://us-y2meta.com/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "en-gb",
+            href: "https://uk-y2meta.com/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "de",
+            href: "https://y2meta.pro/de/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "es",
+            href: "https://y2meta.pro/es/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "fr",
+            href: "https://y2meta.pro/fr/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "hi",
+            href: "https://y2meta.pro/hi/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "id",
+            href: "https://y2meta.pro/id/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "it",
+            href: "https://y2meta.pro/it/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ja",
+            href: "https://y2meta.pro/ja/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ko",
+            href: "https://y2meta.pro/ko/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "my",
+            href: "https://y2meta.pro/my/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ms",
+            href: "https://y2meta.pro/ms/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "tl-ph",
+            href: "https://y2meta.pro/tl-ph/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "pt",
+            href: `${n.C1}${n.yg}`
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ru",
+            href: "https://y2meta.pro/ru/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "th",
+            href: "https://y2meta.pro/th/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "tr",
+            href: "https://y2meta.pro/tr/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "vi",
+            href: "https://y2meta.pro/vi/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "zh-cn",
+            href: "https://y2meta.pro/zh-cn/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "zh-tw",
+            href: "https://y2meta.pro/zh-tw/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ar",
+            href: "https://y2meta.pro/ar/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "bn",
+            href: "https://y2meta.pro/bn/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "pl",
+            href: "https://y2meta.pro/pl/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "el",
+            href: "https://y2meta.pro/el/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "lv",
+            href: "https://y2meta.pro/lv/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "lt",
+            href: "https://y2meta.pro/lt/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "nl",
+            href: "https://y2meta.pro/nl/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "sv",
+            href: "https://y2meta.pro/sv/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "sk",
+            href: "https://y2meta.pro/sk/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "sl",
+            href: "https://y2meta.pro/sl/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "da",
+            href: "https://y2meta.pro/da/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "fi",
+            href: "https://y2meta.pro/fi/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "bg",
+            href: "https://y2meta.pro/bg/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "cs",
+            href: "https://y2meta.pro/cs/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "et",
+            href: "https://y2meta.pro/et/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "hu",
+            href: "https://y2meta.pro/hu/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ro",
+            href: "https://y2meta.pro/ro/youtube-to-mp3/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "x-default",
+            href: `${n.C1}${n.hJ}`
+        }))
+          , s = () => r.createElement(r.Fragment, null, r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "en",
+            href: `${n.C1}${n.o8}`
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "en-us",
+            href: "https://us-y2meta.com/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "en-gb",
+            href: "https://uk-y2meta.com/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "de",
+            href: "https://y2meta.pro/de/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "es",
+            href: "https://y2meta.pro/es/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "fr",
+            href: "https://y2meta.pro/fr/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "hi",
+            href: "https://y2meta.pro/hi/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "id",
+            href: "https://y2meta.pro/id/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "it",
+            href: "https://y2meta.pro/it/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ja",
+            href: "https://y2meta.pro/ja/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ko",
+            href: "https://y2meta.pro/ko/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "my",
+            href: "https://y2meta.pro/my/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ms",
+            href: "https://y2meta.pro/ms/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "tl-ph",
+            href: "https://y2meta.pro/tl-ph/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "pt",
+            href: `${n.C1}${n.rZ}`
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ru",
+            href: "https://y2meta.pro/ru/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "th",
+            href: "https://y2meta.pro/th/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "tr",
+            href: "https://y2meta.pro/tr/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "vi",
+            href: "https://y2meta.pro/vi/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "zh-cn",
+            href: "https://y2meta.pro/zh-cn/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "zh-tw",
+            href: "https://y2meta.pro/zh-tw/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ar",
+            href: "https://y2meta.pro/ar/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "bn",
+            href: "https://y2meta.pro/bn/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "pl",
+            href: "https://y2meta.pro/pl/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "el",
+            href: "https://y2meta.pro/el/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "lv",
+            href: "https://y2meta.pro/lv/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "lt",
+            href: "https://y2meta.pro/lt/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "nl",
+            href: "https://y2meta.pro/nl/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "sv",
+            href: "https://y2meta.pro/sv/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "sk",
+            href: "https://y2meta.pro/sk/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "sl",
+            href: "https://y2meta.pro/sl/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "da",
+            href: "https://y2meta.pro/da/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "fi",
+            href: "https://y2meta.pro/fi/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "bg",
+            href: "https://y2meta.pro/bg/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "cs",
+            href: "https://y2meta.pro/cs/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "et",
+            href: "https://y2meta.pro/et/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "hu",
+            href: "https://y2meta.pro/hu/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "ro",
+            href: "https://y2meta.pro/ro/youtube-to-mp4/"
+        }), r.createElement("link", {
+            rel: "alternate",
+            hrefLang: "x-default",
+            href: `${n.C1}${n.o8}`
+        }))
+    }
+}]);
