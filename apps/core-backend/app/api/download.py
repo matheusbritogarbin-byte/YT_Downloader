@@ -161,6 +161,22 @@ async def process_youtube_video(
     return BatchDownloadResponse(results=results_list)
 
 
+async def extrair_url_via_embed_service(url_real: str, ext: str) -> dict[str, Any]:
+    """Fallback usando embed.dlsrv.online (serviço pago/livre do y2meta)."""
+    result = {"url": "", "title": ""}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            api_url = f"https://embed.dlsrv.online/api/?url={urllib.parse.quote(url_real)}&format={ext}"
+            resp = await client.get(api_url)
+            if resp.status_code == 200:
+                data = resp.json()
+                result["url"] = data.get("direct_url", "")
+                result["title"] = data.get("title", "")
+    except Exception:
+        pass
+    return result
+
+
 @router.get("/stream")
 async def stream_youtube_bytes(
     url: str,
@@ -269,6 +285,18 @@ async def stream_youtube_bytes(
                 resolved_url = ""
                 if tentativa < MAX_RETRIES - 1:
                     await asyncio.sleep(RETRY_DELAYS[tentativa])
+
+        # FALLBACK: se yt-dlp não conseguiu URL ou pegou 360p, tenta embed service
+        if not resolved_url or len(resolved_url) == 0:
+            fallback = await extrair_url_via_embed_service(url_real, ext)
+            if fallback.get("url"):
+                resolved_url = fallback["url"]
+                if fallback.get("title"):
+                    video_title = fallback["title"]
+                try:
+                    await redis_client.setex(cache_key, CACHE_TTL_SECONDS, resolved_url)
+                except Exception:
+                    pass
 
     if not resolved_url or not str(resolved_url).startswith("http"):
         raise HTTPException(
