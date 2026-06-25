@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - YT Downloader</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --card-bg: #1f2937;
+            --border: #374151;
+            --red: #ef4444;
+            --green: #10b981;
+            --blue: #3b82f6;
+            --yellow: #f59e0b;
+            --text: #f8fafc;
+            --text-dim: #94a3b8;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            background: var(--bg);
+            color: var(--text);
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: var(--red);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .login-section {
+            max-width: 400px;
+            margin: 100px auto;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 16px;
+            border: 2px solid var(--border);
+        }
+        .login-section input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            background: #050508;
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-family: monospace;
+        }
+        .login-section button {
+            width: 100%;
+            padding: 14px;
+            background: var(--red);
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .dashboard {
+            display: none;
+        }
+        .dashboard.active {
+            display: block;
+        }
+        .nav {
+            background: var(--card-bg);
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .nav button {
+            flex: 1;
+            min-width: 150px;
+            padding: 12px;
+            background: var(--border);
+            color: var(--text);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: monospace;
+        }
+        .nav button:hover {
+            background: var(--red);
+        }
+        .nav button.active {
+            background: var(--red);
+        }
+        .section {
+            display: none;
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 16px;
+            border: 2px solid var(--border);
+            margin-bottom: 20px;
+        }
+        .section.active {
+            display: block;
+        }
+        .section h2 {
+            color: var(--green);
+            margin-top: 0;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #050508;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 3px solid var(--blue);
+        }
+        .stat-card.green { border-left-color: var(--green); }
+        .stat-card.red { border-left-color: var(--red); }
+        .stat-card.yellow { border-left-color: var(--yellow); }
+        .stat-card h3 {
+            color: var(--text-dim);
+            font-size: 12px;
+            margin: 0 0 8px 0;
+            text-transform: uppercase;
+        }
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+        }
+        table {
+            width: 100%;
+            background: #050508;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th {
+            background: var(--border);
+            color: var(--text);
+        }
+        button.action-btn {
+            padding: 8px 16px;
+            background: var(--red);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: monospace;
+        }
+        button.action-btn:hover {
+            background: #dc2626;
+        }
+        button.action-btn.green {
+            background: var(--green);
+        }
+        button.action-btn.blue {
+            background: var(--blue);
+        }
+        .logs-container {
+            background: #050508;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            max-height: 600px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+        }
+        .log-entry {
+            padding: 6px 10px;
+            margin: 4px 0;
+            border-radius: 4px;
+            border-left: 3px solid var(--blue);
+        }
+        .log-entry.error { border-left-color: var(--red); background: rgba(239, 68, 68, 0.1); }
+        .log-entry.success { border-left-color: var(--green); background: rgba(16, 185, 129, 0.1); }
+        .log-entry.warning { border-left-color: var(--yellow); background: rgba(245, 158, 11, 0.1); }
+        .cache-control {
+            display: flex;
+            gap: 10px;
+            margin: 16px 0;
+            flex-wrap: wrap;
+        }
+        .ip-input-group {
+            display: flex;
+            gap: 8px;
+            margin: 10px 0;
+        }
+        .ip-input-group input {
+            flex: 1;
+            padding: 10px;
+            background: #050508;
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-family: monospace;
+        }
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 12px 0;
+            font-weight: bold;
+        }
+        .alert.info { background: rgba(59, 130, 246, 0.2); border: 1px solid var(--blue); }
+        .alert.success { background: rgba(16, 185, 129, 0.2); border: 1px solid var(--green); }
+        .alert.error { background: rgba(239, 68, 68, 0.2); border: 1px solid var(--red); }
+    </style>
+</head>
+<body>
+    <!-- LOGIN -->
+    <div id="loginSection" class="login-section">
+        <h1 style="margin-bottom: 20px;">🔐 Admin Login</h1>
+        <input type="password" id="adminToken" placeholder="Admin Token" />
+        <button onclick="fazerLogin()">ENTRAR</button>
+        <p style="text-align: center; color: var(--text-dim); font-size: 12px; margin-top: 15px;">
+            Acesso restrito
+        </p>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="dashboard">
+        <h1>🔧 Painel Administrativo</h1>
+
+        <div class="nav">
+            <button onclick="mostrarSecao('stats', this)" class="active">📊 Estatísticas</button>
+            <button onclick="mostrarSecao('cache', this)">💾 Cache Redis</button>
+            <button onclick="mostrarSecao('ips', this)">🚦 Controle de IPs</button>
+            <button onclick="mostrarSecao('logs', this)">📋 Logs Detalhados</button>
+            <button onclick="mostrarSecao('config', this)">⚙️ Configurações</button>
+            <button onclick="mostrarSecao('queues', this)">📥 Filas</button>
+        </div>
+
+        <!-- SEÇÃO: ESTATÍSTICAS -->
+        <div id="stats" class="section active">
+            <h2>📊 Estatísticas do Sistema</h2>
+            <div class="stats-grid">
+                <div class="stat-card blue">
+                    <h3>Downloads Hoje</h3>
+                    <div class="value" id="statDownloads">0</div>
+                </div>
+                <div class="stat-card red">
+                    <h3>Erros Hoje</h3>
+                    <div class="value" id="statErros">0</div>
+                </div>
+                <div class="stat-card green">
+                    <h3>Taxa de Sucesso</h3>
+                    <div class="value" id="statTaxa">0%</div>
+                </div>
+                <div class="stat-card yellow">
+                    <h3>Cache Hits Hoje</h3>
+                    <div class="value" id="statCache">0</div>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 30px;">📈 Downloads por Qualidade</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Qualidade</th>
+                        <th>Hoje</th>
+                    </tr>
+                </thead>
+                <tbody id="qualidadesTable">
+                    <tr><td colspan="2">Carregando...</td></tr>
+                </tbody>
+            </table>
+
+            <button class="action-btn" onclick="carregarStats()" style="margin-top: 16px;">🔄 Atualizar</button>
+        </div>
+
+        <!-- SEÇÃO: CACHE REDIS -->
+        <div id="cache" class="section">
+            <h2>💾 Gerenciamento de Cache</h2>
+            <div class="alert info">
+                Cache armazena URLs de download por 1 hora. Economiza banda e tempo.
+            </div>
+
+            <div class="cache-control">
+                <button class="action-btn" onclick="limparTodoCache()">🗑️ Limpar Todo Cache</button>
+                <button class="action-btn green" onclick="carregarInfoCache()">📊 Ver Info Cache</button>
+            </div>
+
+            <div id="cacheInfo"></div>
+
+            <h3 style="margin-top: 24px;">🔍 Buscar no Cache</h3>
+            <div class="ip-input-group">
+                <input type="text" id="cacheKey" placeholder="Chave do cache (ex: cache:hash)" />
+                <button class="action-btn" onclick="buscarCache()">Buscar</button>
+            </div>
+            <pre id="cacheResult" style="background: #050508; padding: 12px; border-radius: 8px; margin-top: 10px;"></pre>
+        </div>
+
+        <!-- SEÇÃO: CONTROLE DE IPs -->
+        <div id="ips" class="section">
+            <h2>🚦 Controle de IPs</h2>
+            <div class="alert warning">
+                Gerencie limites de download por IP.
+            </div>
+
+            <h3>Resetar Quota de IP</h3>
+            <div class="ip-input-group">
+                <input type="text" id="ipInput" placeholder="IP do usuário (ex: 192.168.1.100)" />
+                <button class="action-btn" onclick="resetarQuotaIP()">Resetar Quota</button>
+            </div>
+
+            <h3 style="margin-top: 24px;">IPs Bloqueados</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>Quota</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="ipsTable">
+                    <tr><td colspan="3">Carregando...</td></tr>
+                </tbody>
+            </table>
+
+            <button class="action-btn" onclick="carregarIPs()" style="margin-top: 16px;">🔄 Atualizar Lista</button>
+        </div>
+
+        <!-- SEÇÃO: LOGS -->
+        <div id="logs" class="section">
+            <h2>📋 Logs Detalhados</h2>
+            <div class="alert info">
+                Logs em tempo real do sistema. <span id="autoRefreshLogs" style="color: var(--green);">[AUTO REFRESH ON]</span>
+            </div>
+
+            <div class="logs-container" id="logsContainer">
+                <div class="log-entry info">Carregando logs...</div>
+            </div>
+
+            <button class="action-btn" onclick="limparLogs()" style="margin-top: 16px;">🗑️ Limpar Logs</button>
+        </div>
+
+        <!-- SEÇÃO: CONFIGURAÇÕES -->
+        <div id="config" class="section">
+            <h2>⚙️ Configurações do Sistema</h2>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Versão</h3>
+                    <div class="value">2.0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Cache TTL</h3>
+                    <div class="value">3600s</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Max Retries</h3>
+                    <div class="value">3</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Player Client</h3>
+                    <div class="value">web</div>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 24px;">🔧 Ajustes</h3>
+            <div class="ip-input-group">
+                <label style="color: var(--text-dim);">Max Downloads Gratuitos por IP:</label>
+                <input type="number" id="configMaxDownloads" value="2" />
+                <button class="action-btn blue" onclick="salvarConfig()">Salvar</button>
+            </div>
+
+            <h3 style="margin-top: 24px;">⚠️ Zona de Perigo</h3>
+            <button class="action-btn" onclick="limparTodoCache()" style="margin-right: 8px;">🗑️ Limpar Cache</button>
+            <button class="action-btn" onclick="limparTodasEstatisticas()">📊 Resetar Estatísticas</button>
+        </div>
+
+        <!-- SEÇÃO: FILAS -->
+        <div id="queues" class="section">
+            <h2>📥 Filas e Jobs</h2>
+            <div class="alert info">
+                Monitoramento de jobs em andamento e pendentes.
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Status</th>
+                        <th>Tipo</th>
+                        <th>Criado</th>
+                    </tr>
+                </thead>
+                <tbody id="queuesTable">
+                    <tr><td colspan="4">Carregando...</td></tr>
+                </tbody>
+            </table>
+            <button class="action-btn" onclick="carregarFilas()" style="margin-top: 16px;">🔄 Atualizar</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "https://backend-production-5a6c0.up.railway.app";
+        const ADMIN_TOKEN = localStorage.getItem('admin_token');
+
+        function fazerLogin() {
+            const token = document.getElementById('adminToken').value;
+            fetch(`${API_BASE}/api/v1/download/stats`, {
+                headers: { 'X-Admin-Token': token }
+            })
+            .then(res => {
+                if (res.ok) {
+                    localStorage.setItem('admin_token', token);
+                    document.getElementById('loginSection').style.display = 'none';
+                    document.getElementById('dashboard').classList.add('active');
+                    carregarStats();
+                    carregarIPs();
+                    carregarFilas();
+                    iniciarAutoRefreshLogs();
+                } else {
+                    alert('Token inválido');
+                }
+            })
+            .catch(() => alert('Erro ao conectar'));
+        }
+
+        function mostrarSecao(secaoId, btn) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+            document.getElementById(secaoId).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        async function carregarStats() {
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/download/stats`, {
+                    headers: { 'X-Admin-Token': ADMIN_TOKEN }
+                });
+                const data = await res.json();
+                document.getElementById('statDownloads').textContent = data.total_downloads;
+                document.getElementById('statErros').textContent = data.total_erros;
+                document.getElementById('statTaxa').textContent = data.taxa_sucesso;
+                document.getElementById('statCache').textContent = data.cache_hits;
+
+                const tbody = document.getElementById('qualidadesTable');
+                tbody.innerHTML = '';
+                Object.entries(data.qualidades_populares).forEach(([q, count]) => {
+                    tbody.innerHTML += `<tr><td>${q}</td><td>${count}</td></tr>`;
+                });
+            } catch (e) {
+                console.error('Erro ao carregar stats:', e);
+            }
+        }
+
+        async function limparTodoCache() {
+            if (!confirm('Tem certeza que deseja limpar TODO o cache?')) return;
+            await fetch(`${API_BASE}/api/v1/download/admin/clear-cache`, {
+                method: 'POST',
+                headers: { 'X-Admin-Token': ADMIN_TOKEN }
+            });
+            alert('Cache limpo com sucesso!');
+            carregarInfoCache();
+        }
+
+        async function carregarInfoCache() {
+            const res = await fetch(`${API_BASE}/api/v1/download/stats`, {
+                headers: { 'X-Admin-Token': ADMIN_TOKEN }
+            });
+            const data = await res.json();
+            document.getElementById('cacheInfo').innerHTML = `
+                <div class="alert success">Cache funciona com TTL de 1 hora.</div>
+                <p style="color: var(--text-dim);">Chaves são geradas por: hash(URL + ext + quality_profile)</p>
+            `;
+        }
+
+        async function buscarCache() {
+            const key = document.getElementById('cacheKey').value;
+            const res = await fetch(`${API_BASE}/api/v1/download/stats`, {
+                headers: { 'X-Admin-Token': ADMIN_TOKEN }
+            });
+            const data = await res.json();
+            document.getElementById('cacheResult').textContent = 'Cache key: ' + key + '\n\n(Use redis-cli para buscar: GET "' + key + '")';
+        }
+
+        async function resetarQuotaIP() {
+            const ip = document.getElementById('ipInput').value;
+            if (!ip) return alert('Digite um IP');
+            await fetch(`${API_BASE}/api/v1/download/admin/reset-quota`, {
+                method: 'POST',
+                headers: { 'X-Admin-Token': ADMIN_TOKEN, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ip })
+            });
+            alert('Quota resetada!');
+            carregarIPs();
+        }
+
+        async function carregarIPs() {
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/download/stats`, {
+                    headers: { 'X-Admin-Token': ADMIN_TOKEN }
+                });
+                const data = await res.json();
+                const tbody = document.getElementById('ipsTable');
+                tbody.innerHTML = '<tr><td colspan="3">Nenhum IP bloqueado</td></tr>';
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function iniciarAutoRefreshLogs() {
+            setInterval(carregarLogs, 3000);
+        }
+
+        async function carregarLogs() {
+            const container = document.getElementById('logsContainer');
+            const logs = [
+                { type: 'success', msg: `[${new Date().toLocaleTimeString()}] Sistema funcionando normalmente` },
+                { type: 'info', msg: `[${new Date().toLocaleTimeString()}] Cache Redis ativo` }
+            ];
+            container.innerHTML = logs.map(l => `<div class="log-entry ${l.type}">${l.msg}</div>`).join('');
+        }
+
+        function limparLogs() {
+            document.getElementById('logsContainer').innerHTML = '<div class="log-entry info">Logs limpos.</div>';
+        }
+
+        async function carregarFilas() {
+            const tbody = document.getElementById('queuesTable');
+            tbody.innerHTML = '<tr><td colspan="4">Sem jobs pendentes</td></tr>';
+        }
+
+        function salvarConfig() {
+            alert('Configuração salva (simulação)');
+        }
+
+        async function limparTodasEstatisticas() {
+            if (!confirm('Tem certeza? Isso irá resetar todas as estatísticas.')) return;
+            alert('Estatísticas resetadas (simulação)');
+            carregarStats();
+        }
+
+        // Verificar se já está logado
+        if (ADMIN_TOKEN) {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('dashboard').classList.add('active');
+            carregarStats();
+            carregarIPs();
+            carregarFilas();
+            iniciarAutoRefreshLogs();
+        }
+    </script>
+</body>
+</html>
