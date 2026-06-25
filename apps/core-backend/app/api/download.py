@@ -245,22 +245,21 @@ async def stream_youtube_bytes(
     if str(resolved_url).startswith("http://"):
         resolved_url = str(resolved_url).replace("http://", "https://", 1)
 
-    # Sanitizar nome do ficheiro: remove caracteres perigosos para URL/filename
-    filename = f"{video_title}.{ext}"
-    # Permitir apenas caracteres seguros, substituir espaços por underscore
-    filename_safe = re.sub(r"[^a-zA-Z0-9_\-\.]", "_", filename)
-    # Remover underscores consecutivos
-    filename_safe = re.sub(r"_+", "_", filename_safe).strip("_. ")
-    if not filename_safe:
-        filename_safe = f"arquivo.{ext}"
+    # Content-Disposition com RFC 5987 para suportar UTF-8
+    # filename* (URL-encoded) é usado pelos browsers modernos
+    # filename (ASCII) é fallback para browsers antigos
+    filename_ascii = re.sub(r"[^\x20-\x7E]", "_", video_title)[:60]
+    filename_ascii = re.sub(r"_+", "_", filename_ascii).strip("_. ")
+    if not filename_ascii:
+        filename_ascii = "arquivo"
 
-    # Header RFC 5987 para suportar UTF-8 no filename
     from urllib.parse import quote
 
-    encoded_filename = quote(filename_safe)
+    # URL-encode total do título para filename* (suporta acentos, espaços, símbolos)
+    encoded_filename = quote(video_title, safe="")
     content_disposition = (
-        f'attachment; filename="{filename_safe}"; '
-        f"filename*=UTF-8''{encoded_filename}"
+        f'attachment; filename="{filename_ascii}.{ext}"; '
+        f"filename*=UTF-8''{encoded_filename}.{ext}"
     )
 
     async def generate_bytes():
