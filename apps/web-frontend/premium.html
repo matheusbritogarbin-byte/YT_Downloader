@@ -155,20 +155,21 @@
                     cards[i].style.boxShadow = '0 0 30px rgba(245, 158, 11, 0.4)';
                 }
                 
-                await processarDownloadNativoNoCliente(urls[i], tipoMidia, titulo, perfil);
+                // Iniciar download sem aguardar conclusão (evita travamento)
+                processarDownloadNativoNoCliente(urls[i], tipoMidia, titulo, perfil).catch(() => {});
                 
-                // Remover destaque após 2s
+                // Aguardar 5s fixos entre downloads para evitar bloqueio do navegador
+                if (i < urls.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+                
+                // Remover destaque após delay
                 setTimeout(() => {
                     if (cards[i]) {
                         cards[i].style.borderColor = '#10b981';
                         cards[i].style.boxShadow = '0 0 20px rgba(16, 185, 129, 0.1)';
                     }
-                }, 2000);
-                
-                // Aguardar 3s antes do próximo
-                if (i < urls.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 3000));
-                }
+                }, 3000);
             }
         }
 
