@@ -1,6 +1,7 @@
 import os
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
 from app.api import api_router
 from app.core import settings
 
@@ -20,6 +21,23 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+
+frontend_path = "/app/web-frontend"
+
+
+@app.get("/admin.html", response_class=HTMLResponse)
+async def admin_panel():
+    return FileResponse(os.path.join(frontend_path, "admin.html"))
+
+
+@app.get("/debug.html", response_class=HTMLResponse)
+async def debug_panel():
+    return FileResponse(os.path.join(frontend_path, "debug.html"))
+
+
+@app.get("/formatos.html", response_class=HTMLResponse)
+async def formatos_panel():
+    return FileResponse(os.path.join(frontend_path, "formatos.html"))
 
 
 @app.get("/health", tags=["Infrastructure"])

@@ -2,7 +2,7 @@
 python = {}
 
 [phases.setup]
-nixPkgs = ["...", "ffmpeg", "git"]
+nixPkgs = ["...", "ffmpeg", "git", "cp"]
 
 [phases.build]
-cmds = ["mkdir -p web-frontend", "cp -r ../../web-frontend/* web-frontend/"]
+cmds = ["mkdir -p /app/web-frontend", "cp -r ../../web-frontend/* /app/web-frontend/"]
