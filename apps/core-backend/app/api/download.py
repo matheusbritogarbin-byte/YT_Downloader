@@ -212,8 +212,8 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = title or "video"
 
-    # Formato simples que funciona mesmo em vídeos problemáticos
-    selected_format = "best[ext=mp4]/best"
+    # Deixar yt-dlp escolher o melhor formato disponível para este vídeo
+    selected_format = "bestvideo+bestaudio/best"
 
     postprocessors = None
     if ext == "mp3":
