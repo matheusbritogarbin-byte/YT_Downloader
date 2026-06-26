@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Formatos Disponíveis</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #0a0a0a; color: #fff; }
+        input { padding: 10px; background: #1f2937; border: 1px solid #374151; color: #fff; width: 400px; }
+        button { padding: 10px 20px; background: #ef4444; border: none; color: #fff; cursor: pointer; }
+        pre { background: #050508; padding: 16px; border-radius: 8px; margin-top: 20px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Listar Formatos do YouTube</h1>
+    <input type="text" id="urlInput" placeholder="Cole a URL do YouTube" />
+    <button onclick="listarFormatos()">Listar</button>
+    <pre id="resultado"></pre>
+    <script>
+        async function listarFormatos() {
+            const url = document.getElementById('urlInput').value;
+            const res = await fetch(`https://backend-production-5a6c0.up.railway.app/api/v1/download/debug/formats?url=${encodeURIComponent(url)}`);
+            const data = await res.json();
+            document.getElementById('resultado').textContent = JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+</html>
