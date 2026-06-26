@@ -269,44 +269,45 @@ async def stream_youtube_bytes(
     if cached_url:
         resolved_url = cached_url
     else:
-        for tentativa in range(MAX_RETRIES):
+        # TENTATIVA 1: embed service primeiro (evita bloqueio do YouTube)
+        fallback = await extrair_url_via_embed_service(url_real, ext)
+        if fallback.get("url"):
+            resolved_url = fallback["url"]
+            if fallback.get("title"):
+                video_title = fallback["title"]
             try:
-                with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-                    info = ydl.extract_info(url_real, download=False) or {}
-                    video_title = str(info.get("title", video_title))
-                    formats = info.get("formats", [])
-                    requested_formats = info.get("requested_formats", [])
-
-                    if requested_formats:
-                        resolved_url = requested_formats[0].get("url", "")
-                    elif formats:
-                        best = formats[-1]
-                        resolved_url = best.get("url", "")
-
-                    if resolved_url and str(resolved_url).startswith("http"):
-                        try:
-                            await redis_client.setex(
-                                cache_key, CACHE_TTL_SECONDS, resolved_url
-                            )
-                        except Exception:
-                            pass
-                        break
+                await redis_client.setex(cache_key, CACHE_TTL_SECONDS, resolved_url)
             except Exception:
-                resolved_url = ""
-                if tentativa < MAX_RETRIES - 1:
-                    await asyncio.sleep(RETRY_DELAYS[tentativa])
+                pass
 
-        # FALLBACK: se yt-dlp não conseguiu URL ou pegou 360p, tenta embed service
-        if not resolved_url or len(resolved_url) == 0:
-            fallback = await extrair_url_via_embed_service(url_real, ext)
-            if fallback.get("url"):
-                resolved_url = fallback["url"]
-                if fallback.get("title"):
-                    video_title = fallback["title"]
+        # TENTATIVA 2: se embed falhar, tenta yt-dlp com cookies
+        if not resolved_url:
+            for tentativa in range(MAX_RETRIES):
                 try:
-                    await redis_client.setex(cache_key, CACHE_TTL_SECONDS, resolved_url)
+                    with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+                        info = ydl.extract_info(url_real, download=False) or {}
+                        video_title = str(info.get("title", video_title))
+                        formats = info.get("formats", [])
+                        requested_formats = info.get("requested_formats", [])
+
+                        if requested_formats:
+                            resolved_url = requested_formats[0].get("url", "")
+                        elif formats:
+                            best = formats[-1]
+                            resolved_url = best.get("url", "")
+
+                        if resolved_url and str(resolved_url).startswith("http"):
+                            try:
+                                await redis_client.setex(
+                                    cache_key, CACHE_TTL_SECONDS, resolved_url
+                                )
+                            except Exception:
+                                pass
+                            break
                 except Exception:
-                    pass
+                    resolved_url = ""
+                    if tentativa < MAX_RETRIES - 1:
+                        await asyncio.sleep(RETRY_DELAYS[tentativa])
 
     if not resolved_url or not str(resolved_url).startswith("http"):
         raise HTTPException(
