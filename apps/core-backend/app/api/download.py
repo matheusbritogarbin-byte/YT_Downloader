@@ -228,8 +228,7 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = title or "video"
 
-    # Deixar yt-dlp escolher o melhor formato disponível para este vídeo
-    selected_format = "bestvideo+bestaudio/best"
+    # Formato fixo áudio/vídeo
 
     postprocessors = None
     if ext == "mp3":
@@ -259,13 +258,12 @@ async def stream_youtube_bytes(
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "format": selected_format,
-        "extractor_args": {"youtube": {"player_client": ["ios", "android", "web"]}},
-        "extractor_retries": 2,
-        "skip_download": True,
-        "ignore_no_formats_error": True,
+        "format": "bestaudio/best",
+        "extractor_args": {
+            "youtube": {"player_client": ["ios"], "player_skip": ["webpage"]}
+        },
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
         },
     }
 
