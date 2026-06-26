@@ -137,6 +137,13 @@ h1 span {
     filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.5));
 }
 
+.premium {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 6px rgba(6, 185, 129, 0.4));
+}
+
 p {
     color: #9ca3af;
     font-family: sans-serif;
