@@ -161,23 +161,6 @@ async def process_youtube_video(
     return BatchDownloadResponse(results=results_list)
 
 
-async def extrair_url_via_embed_service(url_real: str, ext: str) -> dict[str, Any]:
-    """Tenta extrair URL direta via serviço externo (bypass do bloqueio do YouTube)."""
-    result = {"url": "", "title": ""}
-    format_param = "mp3" if ext == "mp3" else "mp4"
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            api_url = f"https://embed.dlsrv.online/api/?url={urllib.parse.quote(url_real)}&format={format_param}"
-            resp = await client.get(api_url)
-            if resp.status_code == 200:
-                data = resp.json()
-                result["url"] = data.get("direct_url", "")
-                result["title"] = data.get("title", "")
-    except Exception:
-        pass
-    return result
-
-
 async def get_cookies_file() -> str | None:
     """Busca cookies do Redis e retorna caminho do arquivo temporário."""
     try:
@@ -211,79 +194,70 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = title or "video"
 
-    # TENTATIVA 1: embed service (bypass bloqueio YouTube)
-    fallback = await extrair_url_via_embed_service(url_real, ext)
-    if fallback.get("url"):
-        resolved_url = fallback["url"]
-        if fallback.get("title"):
-            video_title = fallback["title"]
+    selected_format = "bestvideo+bestaudio/best"
 
-    # TENTATIVA 2: yt-dlp com opções anti-bloqueio
-    if not resolved_url:
-        selected_format = "bestvideo+bestaudio/best"
-
-        postprocessors = None
-        if ext == "mp3":
-            quality_map = {
-                "mp3_320k": "320",
-                "mp3_192k": "192",
-                "mp3_128k": "128",
-                "mp3_64k": "64",
-            }
-            postprocessors = [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": quality_map.get(quality_profile, "320"),
-                }
-            ]
-        elif ext == "m4a":
-            postprocessors = [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "m4a",
-                    "preferredquality": "320",
-                }
-            ]
-
-        ydl_opts: dict[str, Any] = {
-            "quiet": True,
-            "no_warnings": True,
-            "noplaylist": True,
-            "format": selected_format,
-            "extractor_args": {"youtube": {"player_client": ["ios", "android", "web"]}},
-            "http_headers": {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-            },
+    postprocessors = None
+    if ext == "mp3":
+        quality_map = {
+            "mp3_320k": "320",
+            "mp3_192k": "192",
+            "mp3_128k": "128",
+            "mp3_64k": "64",
         }
+        postprocessors = [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": quality_map.get(quality_profile, "320"),
+            }
+        ]
+    elif ext == "m4a":
+        postprocessors = [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "m4a",
+                "preferredquality": "320",
+            }
+        ]
 
-        cookies_file = await get_cookies_file()
-        if cookies_file:
-            ydl_opts["cookiefile"] = cookies_file
+    ydl_opts: dict[str, Any] = {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "format": selected_format,
+        "extractor_args": {"youtube": {"player_client": ["ios", "android", "web"]}},
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        },
+    }
 
-        if postprocessors:
-            ydl_opts["postprocessors"] = postprocessors
+    cookies_file = await get_cookies_file()
+    if cookies_file:
+        ydl_opts["cookiefile"] = cookies_file
 
-        for tentativa in range(MAX_RETRIES):
-            try:
-                with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-                    info = ydl.extract_info(url_real, download=False) or {}
-                    video_title = str(info.get("title", video_title))
-                    formats = info.get("formats", [])
-                    requested_formats = info.get("requested_formats", [])
+    if postprocessors:
+        ydl_opts["postprocessors"] = postprocessors
 
-                    if requested_formats:
-                        resolved_url = requested_formats[0].get("url", "")
-                    elif formats:
-                        best = formats[-1]
-                        resolved_url = best.get("url", "")
+    for tentativa in range(MAX_RETRIES):
+        try:
+            with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+                info = ydl.extract_info(url_real, download=False) or {}
+                video_title = str(info.get("title", video_title))
+                formats = info.get("formats", [])
+                requested_formats = info.get("requested_formats", [])
 
-                    if resolved_url and str(resolved_url).startswith("http"):
-                        break
-            except Exception:
-                resolved_url = ""
-                if tentativa < MAX_RETRIES - 1:
-                    await asyncio.sleep(RETRY_DELAYS[tentativa])
+                if requested_formats:
+                    resolved_url = requested_formats[0].get("url", "")
+                elif formats:
+                    best = formats[-1]
+                    resolved_url = best.get("url", "")
+
+                if resolved_url and str(resolved_url).startswith("http"):
+                    break
+        except Exception:
+            resolved_url = ""
+            if tentativa < MAX_RETRIES - 1:
+                await asyncio.sleep(RETRY_DELAYS[tentativa])
 
     if not resolved_url or not str(resolved_url).startswith("http"):
         raise HTTPException(
