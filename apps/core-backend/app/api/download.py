@@ -260,8 +260,15 @@ async def stream_youtube_bytes(
         "noplaylist": True,
         "format": "bestaudio/best",
         "extractor_args": {
-            "youtube": {"player_client": ["ios"], "player_skip": ["webpage"]}
+            "youtube": {
+                "player_client": ["ios", "mweb", "android"],
+                "player_skip": ["webpage", "configs"],
+            }
         },
+        "extractor_retries": 1,
+        "ignore_no_formats_error": True,
+        "throttledratelimit": 1000000,
+        "source_address": "0.0.0.0",
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
         },
