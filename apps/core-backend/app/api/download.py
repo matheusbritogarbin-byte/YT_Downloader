@@ -194,10 +194,11 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = title or "video"
 
+    # Cadeia de fallback para garantir que sempre haja um formato disponível
     if ext in ("mp3", "m4a"):
-        selected_format = "bestaudio/best"
+        selected_format = "bestaudio[ext=m4a]/bestaudio/best"
     else:
-        selected_format = "best[ext=mp4]/best"
+        selected_format = "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best"
 
     postprocessors = None
     if ext == "mp3":
