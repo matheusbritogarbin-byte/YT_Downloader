@@ -212,17 +212,9 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = title or "video"
 
-    # Formatos honestos baseados no que o YouTube realmente libera
-    format_map: dict[str, str] = {
-        "mp4_360p": "bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/best[height<=360]",
-        "mp4_480p": "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]",
-        "mp4_720p": "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]",
-        "mp3_192k": "bestaudio[ext=m4a]/bestaudio/best",
-        "mp3_128k": "bestaudio/best",
-    }
-    selected_format = format_map.get(
-        quality_profile, "bestvideo[height<=360]+bestaudio/best[height<=360]"
-    )
+    # Usar formato genérico para evitar erro de formato não disponível
+    # O yt-dlp vai escolher automaticamente o melhor que existe naquele momento
+    selected_format = "bestvideo+bestaudio/best"
 
     postprocessors = None
     if ext == "mp3":
