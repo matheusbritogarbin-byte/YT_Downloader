@@ -36,7 +36,11 @@ class StatusResponse(BaseModel):
 @router.post("/checkout/create-session", response_model=CheckoutSessionResponse)
 async def create_checkout_session(request: CreateCheckoutRequest):
     if not stripe.api_key:
-        raise HTTPException(status_code=500, detail="Stripe não configurado.")
+        raise HTTPException(
+            status_code=500, detail="STRIPE_SECRET_KEY não configurada."
+        )
+    if not PRICE_ID:
+        raise HTTPException(status_code=500, detail="STRIPE_PRICE_ID não configurada.")
 
     try:
         session = stripe.checkout.Session.create(
@@ -56,8 +60,10 @@ async def create_checkout_session(request: CreateCheckoutRequest):
             },
         )
         return {"checkout_url": session.url, "session_id": session.id}
+    except stripe.error.InvalidRequestError as e:
+        raise HTTPException(status_code=400, detail=f"Stripe erro: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=f"Erro inesperado: {str(e)}")
 
 
 @router.post("/webhook")
