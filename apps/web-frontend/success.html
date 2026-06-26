@@ -41,15 +41,32 @@
         });
 
         const params = new URLSearchParams(window.location.search);
-        const token = params.get('token');
+        const sessionId = params.get('session_id');
 
-        if (token) {
-            localStorage.setItem('premium_token', token);
-            localStorage.setItem('dl_count', '-999999');
+        if (sessionId) {
+            // Buscar status do pagamento
+            fetch(`/api/v1/payments/status?session_id=${sessionId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.premium_active && data.email) {
+                        localStorage.setItem('premium_token', data.email);
+                        localStorage.setItem('dl_count', '-999999');
+                        const btn = document.getElementById('accessPanelBtn');
+                        btn.onclick = () => window.location.href = `premium.html?token=${data.email}`;
+                    }
+                })
+                .catch(() => {
+                    // Se falhar, tenta token da URL
+                    const token = params.get('token');
+                    if (token) {
+                        localStorage.setItem('premium_token', token);
+                        localStorage.setItem('dl_count', '-999999');
+                    }
+                });
         }
 
         document.getElementById('accessPanelBtn').addEventListener('click', function() {
-            // Corrigido: Redireciona o usuário pagante direto para o painel isolado premium.html
+            const token = localStorage.getItem('premium_token');
             if (token) {
                 window.location.href = `premium.html?token=${token}`;
             } else {

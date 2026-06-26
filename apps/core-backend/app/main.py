@@ -40,9 +40,14 @@ async def formatos_panel():
     return FileResponse(os.path.join(frontend_path, "formatos.html"))
 
 
-@app.get("/payment-success.html", response_class=HTMLResponse)
-async def payment_success():
-    return FileResponse(os.path.join(frontend_path, "payment-success.html"))
+@app.get("/success.html", response_class=HTMLResponse)
+async def success_panel():
+    return FileResponse(os.path.join(frontend_path, "success.html"))
+
+
+@app.get("/cancel.html", response_class=HTMLResponse)
+async def cancel_panel():
+    return FileResponse(os.path.join(frontend_path, "cancel.html"))
 
 
 @app.get("/health", tags=["Infrastructure"])
