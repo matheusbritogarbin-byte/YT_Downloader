@@ -144,13 +144,29 @@
 
         function processarDownloadsEmLote(urls, tipoMidia, titulos, qualityProfile) {
             let atraso = 0;
+            const cards = document.querySelectorAll('#resultsContainer .card-item');
             urls.forEach((url, index) => {
                 setTimeout(() => {
                     const titulo = titulos && titulos[index] ? titulos[index] : "video";
                     const perfil = qualityProfile || obterPerfil();
+                    
+                    // Destacar card atual
+                    if (cards[index]) {
+                        cards[index].style.borderColor = '#f59e0b';
+                        cards[index].style.boxShadow = '0 0 30px rgba(245, 158, 11, 0.4)';
+                    }
+                    
                     processarDownloadNativoNoCliente(url, tipoMidia, titulo, perfil);
+                    
+                    // Remover destaque após 2s
+                    setTimeout(() => {
+                        if (cards[index]) {
+                            cards[index].style.borderColor = '#10b981';
+                            cards[index].style.boxShadow = '0 0 20px rgba(16, 185, 129, 0.1)';
+                        }
+                    }, 2000);
                 }, atraso);
-                atraso += 800;
+                atraso += 1500;
             });
         }
 
@@ -216,7 +232,8 @@
                 batchResult.results.forEach(result => {
                     const itemCard = document.createElement('div');
                     if (result.status === "success") {
-                        itemCard.style.cssText = "text-align: left; background: #050508; padding: 20px; border-radius: 16px; border: 2px solid #10b981; box-shadow: 0 0 20px rgba(16, 185, 129, 0.1); margin-bottom: 20px;";
+                        itemCard.className = "card-item";
+                        itemCard.style.cssText = "text-align: left; background: #050508; padding: 20px; border-radius: 16px; border: 2px solid #10b981; box-shadow: 0 0 20px rgba(16, 185, 129, 0.1); margin-bottom: 20px; transition: all 0.3s ease;";
 
                         const extensaoLabel = qualityProfile.startsWith("mp4") ? "MP4 VÍDEO" : "MP3 ÁUDIO";
                         const fileExt = qualityProfile.startsWith("mp4") ? "mp4" : "mp3";
