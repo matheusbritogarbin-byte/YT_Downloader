@@ -9,33 +9,21 @@
 </head>
 <body oncontextmenu="return false;">
 
-    <div class="wrapper">
-        <div class="navbar"></div>
-
+    <div class="wrapper" style="padding-top: 40px;">
         <main>
-            <div class="card" style="border-color: #f59e0b; box-shadow: 0 0 40px rgba(245, 158, 11, 0.15);">
-                <div class="glow-effect" style="background: linear-gradient(135deg, #f59e0b, #78350f); opacity: 0.3;"></div>
+            <div class="card card-cancel">
+                <div class="glow-effect glow-cancel"></div>
                 
-                <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px auto; box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);">
-                    <svg fill="none" stroke="#050508" viewBox="0 0 24 24" style="width: 26px; height: 26px;">
+                <div class="cancel-icon">
+                    <svg fill="none" stroke="#050508" viewBox="0 0 24 24" style="width: 28px; height: 28px;">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                     </svg>
                 </div>
 
-                <h1 style="text-shadow: 0 0 15px rgba(245, 158, 11, 0.2);">CHECKOUT <span>CANCELADO</span></h1>
-                <p style="color: #4b5563;">O processo de pagamento foi interrompido e nenhuma cobrança foi gerada.</p>
+                <h1 class="cancel-title">CANCELADO</h1>
+                <p class="cancel-text">Nenhuma cobrança foi gerada.</p>
 
-                <div class="price-tag" style="border-color: rgba(245, 158, 11, 0.2); margin-bottom: 32px;">
-                    <div>
-                        <span style="font-size: 10px; color: #f59e0b; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px;">ESTADO</span>
-                        <div style="font-size: 15px; font-weight: 800; color: #ffffff;">Nenhum valor descontado</div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 20px; font-weight: 900; color: #f59e0b;">PENDENTE</div>
-                    </div>
-                </div>
-
-                <button onclick="window.location.href='index.html';" class="btn" style="background: linear-gradient(135deg, #374151 0%, #1f2937 100%); box-shadow: 0 0 20px rgba(31, 41, 55, 0.3); font-weight: 800; color: #9ca3af;">
+                <button onclick="window.location.href='/';" class="btn btn-cancel">
                     VOLTAR AO INÍCIO
                 </button>
             </div>
