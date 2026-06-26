@@ -162,34 +162,19 @@ async def process_youtube_video(
 
 
 async def extrair_url_via_embed_service(url_real: str, ext: str) -> dict[str, Any]:
-    """Fallback usando serviços externos que contornam bloqueio do YouTube."""
+    """Tenta extrair URL direta via serviço externo (bypass do bloqueio do YouTube)."""
     result = {"url": "", "title": ""}
     format_param = "mp3" if ext == "mp3" else "mp4"
-
-    # Lista de serviços para tentar (um por vez)
-    urls_tentar = [
-        f"https://embed.dlsrv.online/api/?url={urllib.parse.quote(url_real)}&format={format_param}",
-        f"https://corsproxy.io/?url={urllib.parse.quote(f'https://www.y2mate.com/mates/en/analyze/ajax?url={url_real}&format={format_param}')}",
-    ]
-
-    for api_url in urls_tentar:
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.get(api_url, headers={"User-Agent": "Mozilla/5.0"})
-                if resp.status_code == 200:
-                    data = resp.json()
-                    url = (
-                        data.get("direct_url")
-                        or data.get("url")
-                        or data.get("stream")
-                        or ""
-                    )
-                    if url:
-                        result["url"] = url
-                        result["title"] = data.get("title", "")
-                        return result
-        except Exception:
-            continue
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            api_url = f"https://embed.dlsrv.online/api/?url={urllib.parse.quote(url_real)}&format={format_param}"
+            resp = await client.get(api_url)
+            if resp.status_code == 200:
+                data = resp.json()
+                result["url"] = data.get("direct_url", "")
+                result["title"] = data.get("title", "")
+    except Exception:
+        pass
     return result
 
 
@@ -199,8 +184,6 @@ async def get_cookies_file() -> str | None:
         cookies_text = await redis_client.get("yt_cookies")
         if not cookies_text:
             return None
-
-        # Criar arquivo temporário de cookies
         import tempfile
 
         temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
@@ -228,110 +211,79 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = title or "video"
 
-    # Formato fixo áudio/vídeo
+    # TENTATIVA 1: embed service (bypass bloqueio YouTube)
+    fallback = await extrair_url_via_embed_service(url_real, ext)
+    if fallback.get("url"):
+        resolved_url = fallback["url"]
+        if fallback.get("title"):
+            video_title = fallback["title"]
 
-    postprocessors = None
-    if ext == "mp3":
-        quality_map = {
-            "mp3_320k": "320",
-            "mp3_192k": "192",
-            "mp3_128k": "128",
-            "mp3_64k": "64",
+    # TENTATIVA 2: yt-dlp com opções anti-bloqueio
+    if not resolved_url:
+        selected_format = "bestvideo+bestaudio/best"
+
+        postprocessors = None
+        if ext == "mp3":
+            quality_map = {
+                "mp3_320k": "320",
+                "mp3_192k": "192",
+                "mp3_128k": "128",
+                "mp3_64k": "64",
+            }
+            postprocessors = [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": quality_map.get(quality_profile, "320"),
+                }
+            ]
+        elif ext == "m4a":
+            postprocessors = [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "m4a",
+                    "preferredquality": "320",
+                }
+            ]
+
+        ydl_opts: dict[str, Any] = {
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "format": selected_format,
+            "extractor_args": {"youtube": {"player_client": ["ios", "android", "web"]}},
+            "http_headers": {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            },
         }
-        postprocessors = [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": quality_map.get(quality_profile, "320"),
-            }
-        ]
-    elif ext == "m4a":
-        postprocessors = [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "m4a",
-                "preferredquality": "320",
-            }
-        ]
 
-    ydl_opts: dict[str, Any] = {
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "format": "bestaudio/best",
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["ios", "mweb", "android"],
-                "player_skip": ["webpage", "configs"],
-            }
-        },
-        "extractor_retries": 1,
-        "ignore_no_formats_error": True,
-        "throttledratelimit": 1000000,
-        "source_address": "0.0.0.0",
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-        },
-    }
+        cookies_file = await get_cookies_file()
+        if cookies_file:
+            ydl_opts["cookiefile"] = cookies_file
 
-    # Usar cookies se disponíveis (resolve bloqueio "Sign in to confirm you're not a bot")
-    cookies_file = await get_cookies_file()
-    if cookies_file:
-        ydl_opts["cookiefile"] = cookies_file
+        if postprocessors:
+            ydl_opts["postprocessors"] = postprocessors
 
-    if postprocessors:
-        ydl_opts["postprocessors"] = postprocessors
-
-    # Cache com qualidade na chave
-    cache_key = f"cache:{hash(url_real + ext + quality_profile)}"
-    cached_url: str | None = None
-    try:
-        cached_url = await redis_client.get(cache_key)
-    except Exception:
-        pass
-
-    if cached_url:
-        resolved_url = cached_url
-    else:
-        # TENTATIVA 1: embed service primeiro (evita bloqueio do YouTube)
-        fallback = await extrair_url_via_embed_service(url_real, ext)
-        if fallback.get("url"):
-            resolved_url = fallback["url"]
-            if fallback.get("title"):
-                video_title = fallback["title"]
+        for tentativa in range(MAX_RETRIES):
             try:
-                await redis_client.setex(cache_key, CACHE_TTL_SECONDS, resolved_url)
+                with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+                    info = ydl.extract_info(url_real, download=False) or {}
+                    video_title = str(info.get("title", video_title))
+                    formats = info.get("formats", [])
+                    requested_formats = info.get("requested_formats", [])
+
+                    if requested_formats:
+                        resolved_url = requested_formats[0].get("url", "")
+                    elif formats:
+                        best = formats[-1]
+                        resolved_url = best.get("url", "")
+
+                    if resolved_url and str(resolved_url).startswith("http"):
+                        break
             except Exception:
-                pass
-
-        # TENTATIVA 2: se embed falhar, tenta yt-dlp com cookies
-        if not resolved_url:
-            for tentativa in range(MAX_RETRIES):
-                try:
-                    with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-                        info = ydl.extract_info(url_real, download=False) or {}
-                        video_title = str(info.get("title", video_title))
-                        formats = info.get("formats", [])
-                        requested_formats = info.get("requested_formats", [])
-
-                        if requested_formats:
-                            resolved_url = requested_formats[0].get("url", "")
-                        elif formats:
-                            best = formats[-1]
-                            resolved_url = best.get("url", "")
-
-                        if resolved_url and str(resolved_url).startswith("http"):
-                            try:
-                                await redis_client.setex(
-                                    cache_key, CACHE_TTL_SECONDS, resolved_url
-                                )
-                            except Exception:
-                                pass
-                            break
-                except Exception:
-                    resolved_url = ""
-                    if tentativa < MAX_RETRIES - 1:
-                        await asyncio.sleep(RETRY_DELAYS[tentativa])
+                resolved_url = ""
+                if tentativa < MAX_RETRIES - 1:
+                    await asyncio.sleep(RETRY_DELAYS[tentativa])
 
     if not resolved_url or not str(resolved_url).startswith("http"):
         raise HTTPException(
@@ -412,7 +364,6 @@ async def debug_formatos(url: str) -> dict[str, Any]:
             info = ydl.extract_info(url_real, download=False) or {}
             formats = info.get("formats", [])
 
-            # Pegar apenas os 10 melhores formatos
             top_formatos = []
             for f in formats[-10:]:
                 top_formatos.append(
