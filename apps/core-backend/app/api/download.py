@@ -474,7 +474,9 @@ async def registrar_qualidade(
 
 
 @router.post("/admin/cookies/save")
-async def salvar_cookies(cookies_text: str, fastapi_request: Request) -> dict[str, str]:
+async def salvar_cookies(fastapi_request: Request) -> dict[str, str]:
+    data = await fastapi_request.json()
+    cookies_text = data.get("cookies_text", "")
     _validar_admin_token(fastapi_request)
     await redis_client.setex("yt_cookies", 86400, cookies_text)
     return {"status": "ok", "mensagem": "Cookies salvos com sucesso!"}
