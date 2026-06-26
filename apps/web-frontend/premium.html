@@ -142,32 +142,34 @@
             }
         }
 
-        function processarDownloadsEmLote(urls, tipoMidia, titulos, qualityProfile) {
-            let atraso = 0;
+        async function processarDownloadsEmLote(urls, tipoMidia, titulos, qualityProfile) {
             const cards = document.querySelectorAll('#resultsContainer .card-item');
-            urls.forEach((url, index) => {
+            
+            for (let i = 0; i < urls.length; i++) {
+                const titulo = titulos && titulos[i] ? titulos[i] : "video";
+                const perfil = qualityProfile || obterPerfil();
+                
+                // Destacar card atual
+                if (cards[i]) {
+                    cards[i].style.borderColor = '#f59e0b';
+                    cards[i].style.boxShadow = '0 0 30px rgba(245, 158, 11, 0.4)';
+                }
+                
+                await processarDownloadNativoNoCliente(urls[i], tipoMidia, titulo, perfil);
+                
+                // Remover destaque após 2s
                 setTimeout(() => {
-                    const titulo = titulos && titulos[index] ? titulos[index] : "video";
-                    const perfil = qualityProfile || obterPerfil();
-                    
-                    // Destacar card atual
-                    if (cards[index]) {
-                        cards[index].style.borderColor = '#f59e0b';
-                        cards[index].style.boxShadow = '0 0 30px rgba(245, 158, 11, 0.4)';
+                    if (cards[i]) {
+                        cards[i].style.borderColor = '#10b981';
+                        cards[i].style.boxShadow = '0 0 20px rgba(16, 185, 129, 0.1)';
                     }
-                    
-                    processarDownloadNativoNoCliente(url, tipoMidia, titulo, perfil);
-                    
-                    // Remover destaque após 2s
-                    setTimeout(() => {
-                        if (cards[index]) {
-                            cards[index].style.borderColor = '#10b981';
-                            cards[index].style.boxShadow = '0 0 20px rgba(16, 185, 129, 0.1)';
-                        }
-                    }, 2000);
-                }, atraso);
-                atraso += 1500;
-            });
+                }, 2000);
+                
+                // Aguardar 3s antes do próximo
+                if (i < urls.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                }
+            }
         }
 
         document.getElementById('downloadForm').addEventListener('submit', async function(e) {
