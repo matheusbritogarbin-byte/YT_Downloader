@@ -212,22 +212,17 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = title or "video"
 
+    # Formatos honestos baseados no que o YouTube realmente libera
     format_map: dict[str, str] = {
-        "mp4_max": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best",
-        "mp4_1080p": "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-        "mp4_720p": "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]",
+        "mp4_360p": "bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=360]+bestaudio/best[height<=360]",
         "mp4_480p": "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio/best[height<=480]",
-        "mp3_320k": "bestaudio[ext=m4a]/bestaudio/best",
+        "mp4_720p": "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]",
         "mp3_192k": "bestaudio[ext=m4a]/bestaudio/best",
         "mp3_128k": "bestaudio/best",
-        "mp3_64k": "bestaudio/best",
-        "webm_max": "bestvideo[ext=webm]+bestaudio[ext=webm]/bestvideo+bestaudio/best",
-        "webm_1080p": "bestvideo[height<=1080][ext=webm]+bestaudio[ext=webm]/bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-        "webm_720p": "bestvideo[height<=720][ext=webm]+bestaudio[ext=webm]/bestvideo[height<=720]+bestaudio/best[height<=720]",
-        "m4a_320k": "bestaudio[ext=m4a]/bestaudio/best",
-        "m4a_128k": "bestaudio[ext=m4a]/bestaudio/best",
     }
-    selected_format = format_map.get(quality_profile, "bestvideo+bestaudio/best")
+    selected_format = format_map.get(
+        quality_profile, "bestvideo[height<=360]+bestaudio/best[height<=360]"
+    )
 
     postprocessors = None
     if ext == "mp3":
