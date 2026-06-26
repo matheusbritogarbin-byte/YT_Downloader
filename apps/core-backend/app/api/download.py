@@ -162,18 +162,34 @@ async def process_youtube_video(
 
 
 async def extrair_url_via_embed_service(url_real: str, ext: str) -> dict[str, Any]:
-    """Fallback usando embed.dlsrv.online (serviço pago/livre do y2meta)."""
+    """Fallback usando serviços externos que contornam bloqueio do YouTube."""
     result = {"url": "", "title": ""}
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            api_url = f"https://embed.dlsrv.online/api/?url={urllib.parse.quote(url_real)}&format={ext}"
-            resp = await client.get(api_url)
-            if resp.status_code == 200:
-                data = resp.json()
-                result["url"] = data.get("direct_url", "")
-                result["title"] = data.get("title", "")
-    except Exception:
-        pass
+    format_param = "mp3" if ext == "mp3" else "mp4"
+
+    # Lista de serviços para tentar (um por vez)
+    urls_tentar = [
+        f"https://embed.dlsrv.online/api/?url={urllib.parse.quote(url_real)}&format={format_param}",
+        f"https://corsproxy.io/?url={urllib.parse.quote(f'https://www.y2mate.com/mates/en/analyze/ajax?url={url_real}&format={format_param}')}",
+    ]
+
+    for api_url in urls_tentar:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(api_url, headers={"User-Agent": "Mozilla/5.0"})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    url = (
+                        data.get("direct_url")
+                        or data.get("url")
+                        or data.get("stream")
+                        or ""
+                    )
+                    if url:
+                        result["url"] = url
+                        result["title"] = data.get("title", "")
+                        return result
+        except Exception:
+            continue
     return result
 
 
@@ -244,7 +260,10 @@ async def stream_youtube_bytes(
         "no_warnings": True,
         "noplaylist": True,
         "format": selected_format,
-        "extractor_args": {"youtube": {"player_client": ["web"]}},
+        "extractor_args": {"youtube": {"player_client": ["ios", "android", "web"]}},
+        "extractor_retries": 2,
+        "skip_download": True,
+        "ignore_no_formats_error": True,
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         },
