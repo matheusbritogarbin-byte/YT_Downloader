@@ -10,22 +10,16 @@
 
     <div class="wrapper" style="padding-top: 40px;">
         <main>
-            <div class="card" style="max-width: 500px; border-color: #10b981; box-shadow: 0 0 40px rgba(16, 185, 129, 0.15), inset 0 0 20px rgba(16, 185, 129, 0.05);">
-                <div class="glow-effect" style="background: linear-gradient(135deg, #10b981, #064e3b);"></div>
+            <div class="card card-premium">
+                <div class="glow-effect glow-premium"></div>
                 <h1>YT <span>Downloader</span> Premium</h1>
                 <p>Downloads ilimitados em lote. Sem cotas.</p>
 
                 <form id="downloadForm" class="input-group">
-                    <textarea 
-                        id="videoUrls"
-                        placeholder="Cole múltiplos links do YouTube aqui (um por linha)..." 
-                        required
-                        rows="5"
-                        style="width: 100%; padding: 18px 20px; background-color: #050508; border: 2px solid #10b981; border-radius: 16px; color: #ffffff; font-family: sans-serif; font-size: 14px; font-weight: 600; outline: none; resize: none; box-sizing: border-box;"
-                    ></textarea>
+                    <textarea id="videoUrls" placeholder="Cole múltiplos links do YouTube aqui (um por linha)..." required rows="5"></textarea>
 
-                    <div style="background-color: #050508; border: 2px solid #1f2937; border-radius: 16px; padding: 16px; text-align: left; font-family: sans-serif; font-size: 13px;">
-                        <span style="color: #10b981; font-weight: 900; display: block; margin-bottom: 12px; font-size: 11px; letter-spacing: 1px;">SELECIONE O FORMATO E QUALIDADE</span>
+                    <div class="quality-selector">
+                        <span>Selecione o formato e qualidade</span>
                         <div style="display: flex; flex-direction: column; gap: 10px;">
                         <!--    <label style="color: #f8fafc; cursor: pointer;"><input type="radio" name="qualityProfile" value="mp4_1080p" checked style="margin-right: 8px; accent-color: #10b981;"> MP4 Vídeo - 1080p HD</label>-->
                             <label style="color: #f8fafc; cursor: pointer;"><input type="radio" name="qualityProfile" value="mp4_720p" style="margin-right: 8px; accent-color: #10b981;"> MP4 Vídeo - 720p HD</label>
@@ -47,22 +41,22 @@
                     <p style="color: #94a3b8; font-size: 13px;">Processando vídeos...</p>
                 </div>
                 <div id="batchActions" style="margin-top: 16px; display: none;">
-                    <button id="downloadAllBtn" class="btn btn-green" style="width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: 800; background: #10b981; color: #fff; cursor: pointer; font-size: 15px;">
-                        ⬇ BAIXAR TODOS OS ARQUIVOS
+                    <button id="downloadAllBtn" class="btn btn-green">
+                        BAIXAR TODOS OS ARQUIVOS
                     </button>
-                    <p id="batchCount" style="margin-top: 10px; color: #94a3b8; font-size: 12px;"></p>
+                    <p id="batchCount" class="batch-count"></p>
                 </div>
-                <div id="resultsContainer" style="margin-top: 28px; display: flex; flex-direction: column; gap: 20px;"></div>
+                <div id="resultsContainer" style="margin-top: 24px; display: flex; flex-direction: column; gap: 16px;"></div>
 
-                <div class="footer-info" style="justify-content: center; color: #10b981; border-top-color: #1f2937;">
-                    <strong>SESSÃO PREMIUM CRIPTOGRAFADA ATIVA</strong>
+                <div class="footer-info">
+                    <strong>Sessão Premium ativa</strong>
                 </div>
             </div>
         </main>
     </div>
 
     <footer>
-        <p>&copy; 2026 YT Downloader Premium.</p>
+        <p>&copy; 2026 YT Downloader.</p>
     </footer>
 
     <script>

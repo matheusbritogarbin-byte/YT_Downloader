@@ -22,13 +22,7 @@
                 <p>Download gratuito de áudio mp3 na qualidade padrão do servidor.</p>
 
                 <form id="downloadForm" class="input-group">
-                    <textarea 
-                        id="videoUrl"
-                        placeholder="Cole o link do YouTube aqui..." 
-                        required
-                        rows="1"
-                        style="width: 100%; padding: 18px 20px; background-color: #050508; border: 2px solid #1f2937; border-radius: 16px; color: #ffffff; font-family: sans-serif; font-size: 14px; font-weight: 600; outline: none; resize: none; box-sizing: border-box; transition: all 0.2s ease;"
-                    ></textarea>
+                    <textarea id="videoUrl" placeholder="Cole o link do YouTube aqui..." required rows="1"></textarea>
                     
                     <button type="submit">
                         DOWNLOAD
@@ -36,15 +30,15 @@
                 </form>
 
                 <div id="statusAlert" class="status-alert hidden"></div>
-                <div id="loadingSpinner" class="hidden" style="margin: 20px 0; text-align: center;">
-                    <div class="spinner" style="border: 4px solid rgba(239, 68, 68, 0.2); border-top: 4px solid #ef4444; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 12px;"></div>
-                    <p style="color: #94a3b8; font-size: 13px;">Processando vídeo...</p>
+                <div id="loadingSpinner" class="hidden">
+                    <div class="spinner"></div>
+                    <p>Processando vídeo...</p>
                 </div>
-                <div id="resultsContainer" style="margin-top: 28px; display: flex; flex-direction: column; gap: 20px;"></div>
+                <div id="resultsContainer"></div>
 
                 <div id="footerQuota" class="footer-info">
-                    <div>COTA GRATUITA: <span id="cotaContador" style="color: #ef4444; font-weight: 900;">2/2</span></div>
-                    <div>PLANO PREMIUM: <strong style="color: #f59e0b; font-weight: 900;">R$ 4,99</strong></div>
+                    <div>COTA GRATUITA: <span id="cotaContador">2/2</span></div>
+                    <div>PLANO PREMIUM: <strong>R$ 4,99</strong></div>
                 </div>
             </div>
         </main>
