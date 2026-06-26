@@ -40,6 +40,11 @@ async def formatos_panel():
     return FileResponse(os.path.join(frontend_path, "formatos.html"))
 
 
+@app.get("/payment-success.html", response_class=HTMLResponse)
+async def payment_success():
+    return FileResponse(os.path.join(frontend_path, "payment-success.html"))
+
+
 @app.get("/health", tags=["Infrastructure"])
 async def health_check() -> dict[str, str | None]:
     return {

@@ -251,15 +251,23 @@
         });
 
         document.getElementById('buyPremiumBtn').addEventListener('click', async function() {
+            const email = prompt('Digite seu e-mail para receber o acesso Premium:');
+            if (!email) return;
+
             try {
                 const response = await fetch(`${API_BASE_URL}api/v1/payments/checkout/create-session`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: email,
+                        success_url: `${window.location.origin}/payment-success.html`,
+                        cancel_url: `${window.location.origin}/`
+                    })
                 });
                 const result = await response.json();
                 if (result.checkout_url) window.location.href = result.checkout_url;
             } catch (err) {
-                alert('Erro ao chamar o gateway de pagamento.');
+                alert('Erro ao iniciar pagamento. Tente novamente.');
             }
         });
 

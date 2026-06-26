@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pagamento Confirmado!</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            color: #10b981;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: #1f2937;
+            border: 2px solid #10b981;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 0 60px rgba(16, 185, 129, 0.3);
+        }
+        .success-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        h1 {
+            color: #10b981;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+        p {
+            color: #94a3b8;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover {
+            background: #059669;
+        }
+        .loading {
+            color: #f59e0b;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✓</div>
+        <h1>Pagamento Confirmado!</h1>
+        <p>Seu acesso Premium está sendo ativado...</p>
+        <p class="loading" id="status">Aguarde alguns instantes.</p>
+        <a href="/premium.html" class="btn">
+            Acessar Premium
+        </a>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('session_id');
+
+        if (sessionId) {
+            fetch(`/api/v1/payments/status?session_id=${sessionId}`)
+                .then(res => res.json())
+                .then(data => {
+                    const statusEl = document.getElementById('status');
+                    if (data.premium_active) {
+                        statusEl.innerHTML = `<strong style="color: #10b981;">✅ Acesso Premium ativado!</strong><br>`;
+                        statusEl.innerHTML += `E-mail: ${data.email}`;
+                    } else {
+                        statusEl.innerHTML = `<strong style="color: #ef4444;">⏳ Processando...</strong><br>`;
+                        setTimeout(() => window.location.reload(), 3000);
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('status').innerHTML = 
+                        '<strong style="color: #ef4444;">Erro ao verificar pagamento.</strong>';
+                });
+        } else {
+            document.getElementById('status').innerHTML = 
+                '<strong style="color: #ef4444;">Session ID não encontrado.</strong>';
+        }
+    </script>
+</body>
+</html>
