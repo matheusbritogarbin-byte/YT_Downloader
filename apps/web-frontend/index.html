@@ -266,8 +266,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         email: email,
-                        success_url: `${API_BASE_URL}success.html`,
-                        cancel_url: `${API_BASE_URL}cancel.html`
+                        success_url: `https://yt-downloader-max.up.railway.app/success.html`,
+                        cancel_url: `https://yt-downloader-max.up.railway.app/cancel.html`
                     })
                 });
                 const result = await response.json();
