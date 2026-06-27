@@ -15,6 +15,7 @@ router = APIRouter(prefix="/download", tags=["Media Downloader"])
 CACHE_TTL_SECONDS = 3600
 MAX_RETRIES = 3
 RETRY_DELAYS = [1, 2, 4]
+QUOTA_MAX_FREE_DAILY = 2
 
 YOUTUBE_REGEX = re.compile(
     r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/(watch\?v=|shorts/|embed/|playlist\?list=)?([a-zA-Z0-9_-]{11})(\S*)?$"
@@ -47,6 +48,30 @@ class DownloadResponseItem(BaseModel):
 
 class BatchDownloadResponse(BaseModel):
     results: list[DownloadResponseItem]
+
+
+async def verificar_quota(ip: str, token: str | None) -> None:
+    """Verifica se o IP já atingiu o limite diário gratuito."""
+    if token:
+        is_premium = await redis_client.get(f"premium:status:{token}")
+        if is_premium == "active":
+            return
+    hoje = datetime.utcnow().strftime("%Y-%m-%d")
+    quota_key = f"quota:ip:{ip}:{hoje}"
+    count = int(await redis_client.get(quota_key) or 0)
+    if count >= QUOTA_MAX_FREE_DAILY:
+        raise HTTPException(
+            status_code=403,
+            detail="Limite gratuito de 2 downloads por dia atingido. Faça upgrade para Premium!",
+        )
+
+
+async def incrementar_quota(ip: str) -> None:
+    """Incrementa o contador de downloads do IP."""
+    hoje = datetime.utcnow().strftime("%Y-%m-%d")
+    quota_key = f"quota:ip:{ip}:{hoje}"
+    await redis_client.incr(quota_key)
+    await redis_client.expire(quota_key, 86400 * 2)
 
 
 def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
@@ -136,6 +161,9 @@ async def process_youtube_video(
         if not YOUTUBE_REGEX.match(item.url.strip()):
             raise HTTPException(status_code=400, detail=f"URL inválida: {item.url}")
 
+    ip = fastapi_request.client.host if fastapi_request.client else "unknown"
+    await verificar_quota(ip, request.token)
+
     tasks = [processar_item_async(item) for item in request.items]
     raw_results = await asyncio.gather(*tasks)
 
@@ -158,307 +186,7 @@ async def process_youtube_video(
                 ),
             )
         )
+
+    await incrementar_quota(ip)
+
     return BatchDownloadResponse(results=results_list)
-
-
-async def get_cookies_file() -> str | None:
-    """Busca cookies do Redis e retorna caminho do arquivo temporário."""
-    try:
-        cookies_text = await redis_client.get("yt_cookies")
-        if not cookies_text:
-            return None
-        import tempfile
-
-        temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-        temp_file.write(cookies_text)
-        temp_file.close()
-        return temp_file.name
-    except Exception:
-        return None
-
-
-@router.get("/stream")
-async def stream_youtube_bytes(
-    url: str,
-    title: str = "video",
-    ext: str = "mp3",
-    quality_profile: str = "mp4_max",
-) -> StreamingResponse:
-    """Stream de áudio/vídeo com qualidade seleccionável."""
-    if not url:
-        raise HTTPException(status_code=400, detail="URL ausente.")
-
-    url_real = urllib.parse.unquote_plus(url)
-    import yt_dlp
-
-    resolved_url = ""
-    video_title = title or "video"
-
-    # Formato universal - yt-dlp escolhe o melhor disponível
-    selected_format = "best"
-
-    postprocessors = None
-    if ext == "mp3":
-        quality_map = {
-            "mp3_320k": "320",
-            "mp3_192k": "192",
-            "mp3_128k": "128",
-            "mp3_64k": "64",
-        }
-        postprocessors = [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": quality_map.get(quality_profile, "320"),
-            }
-        ]
-    elif ext == "m4a":
-        postprocessors = [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "m4a",
-                "preferredquality": "320",
-            }
-        ]
-
-    ydl_opts: dict[str, Any] = {
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "format": selected_format,
-        "extractor_args": {"youtube": {"player_client": ["ios", "android", "web"]}},
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-        },
-    }
-
-    cookies_file = await get_cookies_file()
-    if cookies_file:
-        ydl_opts["cookiefile"] = cookies_file
-
-    if postprocessors:
-        ydl_opts["postprocessors"] = postprocessors
-
-    for tentativa in range(MAX_RETRIES):
-        try:
-            with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-                info = ydl.extract_info(url_real, download=False) or {}
-                video_title = str(info.get("title", video_title))
-                formats = info.get("formats", [])
-                requested_formats = info.get("requested_formats", [])
-
-                if requested_formats:
-                    resolved_url = requested_formats[0].get("url", "")
-                elif formats:
-                    best = formats[-1]
-                    resolved_url = best.get("url", "")
-
-                if resolved_url and str(resolved_url).startswith("http"):
-                    break
-        except Exception:
-            resolved_url = ""
-            if tentativa < MAX_RETRIES - 1:
-                await asyncio.sleep(RETRY_DELAYS[tentativa])
-
-    if not resolved_url or not str(resolved_url).startswith("http"):
-        raise HTTPException(
-            status_code=502,
-            detail="Stream temporariamente indisponível. Tente novamente.",
-        )
-
-    resolved_url = (
-        str(resolved_url).replace("http://", "https://", 1)
-        if str(resolved_url).startswith("http://")
-        else resolved_url
-    )
-
-    filename_ascii = re.sub(r"[^\x20-\x7E]", "_", video_title)[:60]
-    filename_ascii = re.sub(r"_+", "_", filename_ascii).strip("_. ") or "arquivo"
-    encoded_filename = urllib.parse.quote(video_title, safe="")
-    content_disposition = f"attachment; filename=\"{filename_ascii}.{ext}\"; filename*=UTF-8''{encoded_filename}.{ext}"
-
-    async def generate_bytes():
-        try:
-            async with httpx.AsyncClient(timeout=None) as client:
-                async with client.stream(
-                    "GET", resolved_url, headers={"User-Agent": "Mozilla/5.0"}
-                ) as response:
-                    if response.status_code == 200:
-                        async for chunk in response.aiter_bytes(chunk_size=1024 * 64):
-                            yield chunk
-        except Exception:
-            yield b""
-
-    mime_type = "audio/mpeg" if ext == "mp3" else "video/mp4"
-    return StreamingResponse(
-        generate_bytes(),
-        media_type=mime_type,
-        headers={
-            "Content-Disposition": content_disposition,
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-            "X-Content-Type-Options": "nosniff",
-        },
-    )
-
-
-ADMIN_TOKEN = os.getenv("ADMIN_SECRET_TOKEN", "@Matheus07052008")
-
-
-def _validar_admin_token(request: Request) -> None:
-    token_header = request.headers.get("X-Admin-Token")
-    if not token_header or token_header != ADMIN_TOKEN:
-        raise HTTPException(status_code=401, detail="Acesso proibido.")
-
-
-@router.get("/health")
-async def health_check() -> dict[str, str]:
-    return {"status": "ok", "service": "yt-downloader", "version": "2.0"}
-
-
-@router.get("/debug/formats")
-async def debug_formatos(url: str) -> dict[str, Any]:
-    """Endpoint temporário para ver formatos disponíveis."""
-    url_real = urllib.parse.unquote_plus(url)
-    import yt_dlp
-
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "format": "bestvideo+bestaudio/best",
-        "extractor_args": {"youtube": {"player_client": ["web"]}},
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        },
-    }
-
-    try:
-        with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-            info = ydl.extract_info(url_real, download=False) or {}
-            formats = info.get("formats", [])
-
-            top_formatos = []
-            for f in formats[-10:]:
-                top_formatos.append(
-                    {
-                        "format_id": f.get("format_id"),
-                        "ext": f.get("ext"),
-                        "resolution": f.get("resolution"),
-                        "vcodec": f.get("vcodec"),
-                        "acodec": f.get("acodec"),
-                        "filesize": f.get("filesize"),
-                        "height": f.get("height"),
-                        "width": f.get("width"),
-                    }
-                )
-
-            return {
-                "title": info.get("title"),
-                "total_formats": len(formats),
-                "top_10": top_formatos[::-1],
-                "requested_formats": [
-                    f.get("format_id") for f in info.get("requested_formats", [])
-                ],
-            }
-    except Exception as e:
-        return {"erro": str(e)}
-
-
-@router.get("/stats")
-async def obter_estatisticas(fastapi_request: Request) -> dict[str, Any]:
-    _validar_admin_token(fastapi_request)
-    hoje = datetime.utcnow().strftime("%Y-%m-%d")
-    stats: dict[str, Any] = {
-        "data": hoje,
-        "total_downloads": 0,
-        "total_erros": 0,
-        "taxa_sucesso": "0%",
-        "cache_hits": 0,
-        "qualidades_populares": {},
-    }
-    try:
-        stats["total_downloads"] = int(
-            await redis_client.get(f"stats:downloads:{hoje}") or 0
-        )
-        stats["total_erros"] = int(await redis_client.get(f"stats:errors:{hoje}") or 0)
-        stats["cache_hits"] = int(
-            await redis_client.get(f"stats:cache_hits:{hoje}") or 0
-        )
-        total = stats["total_downloads"] + stats["total_erros"]
-        if total > 0:
-            stats["taxa_sucesso"] = f"{(stats['total_downloads']/total)*100:.1f}%"
-        cursor = 0
-        while True:
-            cursor, keys = await redis_client.scan(
-                cursor=cursor, match="popular_quality:*", count=100
-            )
-            for key in keys:
-                quality = key.split(":")[-1]
-                count = await redis_client.get(key)
-                if count:
-                    stats["qualidades_populares"][quality] = int(count)
-            if cursor == 0:
-                break
-    except Exception:
-        pass
-    return stats
-
-
-@router.post("/admin/clear-cache")
-async def limpar_cache(fastapi_request: Request) -> dict[str, str]:
-    _validar_admin_token(fastapi_request)
-    cursor = 0
-    deleted = 0
-    while True:
-        cursor, keys = await redis_client.scan(
-            cursor=cursor, match="cache:*", count=100
-        )
-        if keys:
-            deleted += await redis_client.delete(*keys)
-        if cursor == 0:
-            break
-    return {"status": "ok", "mensagem": f"{deleted} itens removidos do cache."}
-
-
-@router.post("/admin/record-download")
-async def registrar_download(fastapi_request: Request) -> dict[str, str]:
-    _validar_admin_token(fastapi_request)
-    hoje = datetime.utcnow().strftime("%Y-%m-%d")
-    await redis_client.incr(f"stats:downloads:{hoje}")
-    return {"status": "ok"}
-
-
-@router.post("/admin/record-error")
-async def registrar_erro(fastapi_request: Request) -> dict[str, str]:
-    _validar_admin_token(fastapi_request)
-    hoje = datetime.utcnow().strftime("%Y-%m-%d")
-    await redis_client.incr(f"stats:errors:{hoje}")
-    return {"status": "ok"}
-
-
-@router.post("/admin/record-quality")
-async def registrar_qualidade(
-    quality_profile: str, fastapi_request: Request
-) -> dict[str, str]:
-    _validar_admin_token(fastapi_request)
-    hoje = datetime.utcnow().strftime("%Y-%m-%d")
-    await redis_client.incr(f"popular_quality:{quality_profile}:{hoje}")
-    return {"status": "ok"}
-
-
-@router.post("/admin/cookies/save")
-async def salvar_cookies(fastapi_request: Request) -> dict[str, str]:
-    data = await fastapi_request.json()
-    cookies_text = data.get("cookies_text", "")
-    _validar_admin_token(fastapi_request)
-    await redis_client.setex("yt_cookies", 86400, cookies_text)
-    return {"status": "ok", "mensagem": "Cookies salvos com sucesso!"}
-
-
-@router.get("/admin/cookies/get")
-async def buscar_cookies(fastapi_request: Request) -> dict[str, str]:
-    _validar_admin_token(fastapi_request)
-    cookies = await redis_client.get("yt_cookies")
-    return {"cookies": cookies or ""}
