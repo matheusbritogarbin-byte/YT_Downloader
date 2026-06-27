@@ -193,10 +193,15 @@ async def process_youtube_video(
 
 
 async def get_cookies_file() -> str | None:
-    """Busca cookies do Redis e retorna caminho do arquivo temporário."""
+    """Busca cookies do Redis ou usa o arquivo local como fallback."""
     try:
         cookies_text = await redis_client.get("yt_cookies")
         if not cookies_text:
+            local_path = os.path.join(
+                os.path.dirname(__file__), "../../../youtube_cookies.txt"
+            )
+            if os.path.exists(local_path):
+                return local_path
             return None
         import tempfile
 
@@ -205,6 +210,11 @@ async def get_cookies_file() -> str | None:
         temp_file.close()
         return temp_file.name
     except Exception:
+        local_path = os.path.join(
+            os.path.dirname(__file__), "../../../youtube_cookies.txt"
+        )
+        if os.path.exists(local_path):
+            return local_path
         return None
 
 
@@ -256,9 +266,18 @@ async def stream_youtube_bytes(
         "no_warnings": True,
         "noplaylist": True,
         "format": selected_format,
-        "extractor_args": {"youtube": {"player_client": ["ios", "android", "web"]}},
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["tvhtml5", "ios", "android", "web"],
+                "player_skip": ["configs", "auth-comment-box"],
+            }
+        },
         "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Origin": "https://www.youtube.com",
+            "Referer": "https://www.youtube.com/",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         },
     }
 
