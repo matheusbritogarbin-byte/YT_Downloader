@@ -247,7 +247,13 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = title or "video"
 
-    selected_format = "best"
+    # Formato adaptado por tipo de mídia
+    if ext in ("mp3", "m4a"):
+        selected_format = "bestaudio/best"
+    elif ext == "mp4":
+        selected_format = "best[ext=mp4]/best[protocol=http]/best"
+    else:
+        selected_format = "best"
 
     postprocessors = None
     if ext == "mp3":
@@ -300,28 +306,33 @@ async def stream_youtube_bytes(
     if postprocessors:
         ydl_opts["postprocessors"] = postprocessors
 
-    def extrair_url_stream_robusta(formats: list[dict[str, Any]]) -> str:
+    def extrair_url_stream_robusta(formats: list[dict[str, Any]], ext: str) -> str:
         """Varre formats procurando por URL de stream progressiva direta."""
         if not formats:
             return ""
-        # Priorizar formatos progressivos (audio + video juntos)
+        # Para áudio: aceitar apenas acodec presente (vcodec pode ser none em DASH)
+        if ext in ("mp3", "m4a"):
+            for fmt in reversed(formats):
+                url = fmt.get("url", "")
+                if not url or not str(url).startswith("http"):
+                    continue
+                acodec = fmt.get("acodec", "none")
+                ext_fmt = fmt.get("ext", "")
+                if acodec != "none" and ext_fmt in ["mp3", "m4a", "webm", "mp4"]:
+                    return str(url)
+        # Para vídeo: exigir ambos audio e video
         for fmt in reversed(formats):
             url = fmt.get("url", "")
             if not url or not str(url).startswith("http"):
                 continue
             acodec = fmt.get("acodec", "none")
             vcodec = fmt.get("vcodec", "none")
-            ext = fmt.get("ext", "")
-            protocol = fmt.get("protocol", "")
-            # Stream progressivo: audio + video OU apenas video com ext mp4/m4a
+            ext_fmt = fmt.get("ext", "")
             if (
                 acodec != "none"
                 and vcodec != "none"
-                and ext in ["mp4", "m4a", "mp3", "webm"]
+                and ext_fmt in ["mp4", "m4a", "mp3", "webm"]
             ):
-                return str(url)
-            # Fallback: stream de audio puro
-            if acodec != "none" and ext in ["mp3", "m4a", "webm"]:
                 return str(url)
         # Último fallback: qualquer URL HTTP válida
         for fmt in reversed(formats):
@@ -345,7 +356,7 @@ async def stream_youtube_bytes(
                 else:
                     merged_formats = formats
 
-                resolved_url = extrair_url_stream_robusta(merged_formats)
+                resolved_url = extrair_url_stream_robusta(merged_formats, ext)
 
                 if resolved_url:
                     break
