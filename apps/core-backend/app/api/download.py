@@ -279,6 +279,26 @@ async def stream_youtube_bytes(
             }
         ]
 
+    ydl_opts: dict[str, Any] = {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "format": selected_format,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["tvhtml5", "ios", "android", "web"],
+                "player_skip": ["configs", "auth-comment-box"],
+            }
+        },
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Origin": "https://www.youtube.com",
+            "Referer": "https://www.youtube.com/",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        },
+    }
+
     cookies_file = await get_cookies_file()
     if cookies_file:
         ydl_opts["cookiefile"] = cookies_file
