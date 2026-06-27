@@ -53,7 +53,7 @@
             </div>
             
             <h2 id="modalTitle" style="font-size: 24px; font-weight: 900; margin: 0 0 8px 0; color: #ffffff; letter-spacing: 0.5px;">SEJA PREMIUM!</h2>
-            <p id="modalDescription" style="margin-bottom: 24px; color: #94a3b8; font-size: 13px;">Faça o upgrade para baixar vídeos ilimitados em 720p e em lote.</p>
+            <p id="modalDescription" style="margin-bottom: 24px; color: #94a3b8; font-size: 13px;">Faça o upgrade para baixar vídeos ilimitados em 1080p e em lote.</p>
             
             <div class="price-tag">
                 <div>
@@ -78,12 +78,17 @@
     </div>
 
     <!-- Banner premium chamando atencao -->
-    <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 16px; padding: 20px; margin: 30px auto; max-width: 500px; text-align: center; box-shadow: 0 0 40px rgba(245, 158, 11, 0.4);">
-        <strong style="color: #fff; font-size: 18px;">Baixe vídeos sem limites. Use nosso sistema de multi downloads para baixar vários vídeos de uma só vez</strong>
-        <p style="color: #fef3c7; font-size: 13px; margin: 8px 0 16px 0;">Upgrade Premium por R$ 4,99/mes — downloads ilimitados em lote!</p>
-        <button onclick="openPremiumModal()" style="background: #fff; color: #d97706; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 800; cursor: pointer; font-size: 14px;">
-            Upgrade Premium
-        </button>
+    <div class="premium-banner">
+        <div class="banner-content">
+            <div class="banner-icon">👑</div>
+            <div class="banner-text">
+                <strong>Quer baixar em 720p e SEM limites?</strong>
+                <p>Upgrade Premium por R$ 4,99/mes — downloads ilimitados em lote!</p>
+            </div>
+            <button onclick="openPremiumModal()" class="banner-btn">
+                Upgrade Premium
+            </button>
+        </div>
     </div>
 
     <footer>
@@ -100,14 +105,6 @@
             if (e.ctrlKey && (e.key === "u" || e.key === "U")) { e.preventDefault(); return false; }
         });
 
-        function checkActivePremium() {
-            const token = localStorage.getItem('premium_token');
-            const count = localStorage.getItem('dl_count');
-            if (token || count === '-999999') {
-                window.location.href = token ? `premium.html?token=${token}` : "premium.html";
-            }
-        }
-
         function getStorageData() {
             const today = new Date().toISOString().split('T')[0];
             const storedDate = localStorage.getItem('dl_date');
@@ -120,7 +117,6 @@
         }
 
         function updateUI() {
-            checkActivePremium();
             const data = getStorageData();
             const restantes = Math.max(0, MAX_DOWNLOADS - data.count);
             document.getElementById('cotaContador').innerText = `${restantes}/${MAX_DOWNLOADS}`;
@@ -135,6 +131,7 @@
         function openPremiumModal() {
             const modal = document.getElementById('premiumModal');
             modal.classList.add('active');
+            document.getElementById('buyPremiumBtn').classList.remove('hidden');
         }
 
         function closePremiumModal() {
@@ -206,6 +203,7 @@
 
             const data = getStorageData();
             if (data.count >= MAX_DOWNLOADS) {
+                loadingSpinner.classList.add('hidden');
                 openPremiumModal();
                 return;
             }
@@ -221,6 +219,7 @@
                 });
 
                 if (response.status === 403) {
+                    loadingSpinner.classList.add('hidden');
                     statusAlert.className = "status-alert status-red";
                     statusAlert.innerText = "Limite gratuito atingido. Faça o Upgrade Premium!";
                     openPremiumModal();
@@ -229,6 +228,9 @@
 
                 if (!response.ok) throw new Error();
                 const batchResult = await response.json();
+
+                // Esconder loading
+                loadingSpinner.classList.add('hidden');
 
                 statusAlert.className = "status-alert status-green";
                 statusAlert.innerText = "ARQUIVO CONVERTIDO COM SUCESSO!";
@@ -246,6 +248,7 @@
                     }
                 });
             } catch (error) {
+                loadingSpinner.classList.add('hidden');
                 statusAlert.className = "status-alert status-red";
                 statusAlert.innerText = "FALHA NO PROCESSAMENTO MÓVEL. VERIFIQUE A CONEXÃO.";
             } finally {
@@ -263,8 +266,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         email: email,
-                        success_url: `${window.location.origin}/payment-success.html`,
-                        cancel_url: `${window.location.origin}/`
+                        success_url: `${API_BASE_URL}success.html`,
+                        cancel_url: `${API_BASE_URL}cancel.html`
                     })
                 });
                 const result = await response.json();
