@@ -161,17 +161,27 @@ async def process_youtube_video(
         if not YOUTUBE_REGEX.match(item.url.strip()):
             raise HTTPException(status_code=400, detail=f"URL inválida: {item.url}")
 
-    ip = fastapi_request.client.host if fastapi_request.client else "unknown"
+    # Usar X-Forwarded-For como fallback para IP real do cliente
+    forwarded_ip = fastapi_request.headers.get("X-Forwarded-For")
+    ip = (
+        forwarded_ip.split(",")[0].strip()
+        if forwarded_ip
+        else (fastapi_request.client.host if fastapi_request.client else "unknown")
+    )
     await verificar_quota(ip, request.token)
 
     tasks = [processar_item_async(item) for item in request.items]
     raw_results = await asyncio.gather(*tasks)
 
     results_list: list[DownloadResponseItem] = []
+    sucessos = 0
     for r in raw_results:
         file_size_val = r.get("file_size_bytes", 0)
         if file_size_val is None:
             file_size_val = 0
+        status = str(r.get("status", "failed"))
+        if status == "success":
+            sucessos += 1
         results_list.append(
             DownloadResponseItem(
                 url=str(r.get("url", "")),
@@ -180,14 +190,16 @@ async def process_youtube_video(
                 duration=int(r.get("duration", 0)),
                 thumbnail=str(r.get("thumbnail", "")),
                 file_size_bytes=int(file_size_val),
-                status=str(r.get("status", "failed")),
+                status=status,
                 error_message=(
                     str(r.get("error_message")) if r.get("error_message") else None
                 ),
             )
         )
 
-    await incrementar_quota(ip)
+    # Só incrementa quota se houver pelo menos um download bem-sucedido
+    if sucessos > 0:
+        await incrementar_quota(ip)
 
     return BatchDownloadResponse(results=results_list)
 
@@ -288,21 +300,54 @@ async def stream_youtube_bytes(
     if postprocessors:
         ydl_opts["postprocessors"] = postprocessors
 
+    def extrair_url_stream_robusta(formats: list[dict[str, Any]]) -> str:
+        """Varre formats procurando por URL de stream progressiva direta."""
+        if not formats:
+            return ""
+        # Priorizar formatos progressivos (audio + video juntos)
+        for fmt in reversed(formats):
+            url = fmt.get("url", "")
+            if not url or not str(url).startswith("http"):
+                continue
+            acodec = fmt.get("acodec", "none")
+            vcodec = fmt.get("vcodec", "none")
+            ext = fmt.get("ext", "")
+            protocol = fmt.get("protocol", "")
+            # Stream progressivo: audio + video OU apenas video com ext mp4/m4a
+            if (
+                acodec != "none"
+                and vcodec != "none"
+                and ext in ["mp4", "m4a", "mp3", "webm"]
+            ):
+                return str(url)
+            # Fallback: stream de audio puro
+            if acodec != "none" and ext in ["mp3", "m4a", "webm"]:
+                return str(url)
+        # Último fallback: qualquer URL HTTP válida
+        for fmt in reversed(formats):
+            url = fmt.get("url", "")
+            if url and str(url).startswith("http"):
+                return str(url)
+        return ""
+
+    resolved_url = ""
     for tentativa in range(MAX_RETRIES):
         try:
             with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
                 info = ydl.extract_info(url_real, download=False) or {}
                 video_title = str(info.get("title", video_title))
-                formats = info.get("formats", [])
-                requested_formats = info.get("requested_formats", [])
+                formats = list(info.get("formats", []))
 
+                # Tentar requested_formats primeiro
+                requested_formats = list(info.get("requested_formats", []))
                 if requested_formats:
-                    resolved_url = requested_formats[0].get("url", "")
-                elif formats:
-                    best = formats[-1]
-                    resolved_url = best.get("url", "")
+                    merged_formats = requested_formats + formats
+                else:
+                    merged_formats = formats
 
-                if resolved_url and str(resolved_url).startswith("http"):
+                resolved_url = extrair_url_stream_robusta(merged_formats)
+
+                if resolved_url:
                     break
         except Exception:
             resolved_url = ""
@@ -386,7 +431,7 @@ async def debug_formatos(url: str) -> dict[str, Any]:
     try:
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
             info = ydl.extract_info(url_real, download=False) or {}
-            formats = info.get("formats", [])
+            formats = list(info.get("formats", []))
 
             top_formatos = []
             for f in formats[-10:]:
@@ -405,10 +450,10 @@ async def debug_formatos(url: str) -> dict[str, Any]:
 
             return {
                 "title": info.get("title"),
-                "total_formats": len(formats),
+                "total_formats": len(formats) if formats else 0,
                 "top_10": top_formatos[::-1],
                 "requested_formats": [
-                    f.get("format_id") for f in info.get("requested_formats", [])
+                    f.get("format_id") for f in list(info.get("requested_formats", []))
                 ],
             }
     except Exception as e:
