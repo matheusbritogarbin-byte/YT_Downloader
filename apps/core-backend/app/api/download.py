@@ -279,26 +279,6 @@ async def stream_youtube_bytes(
             }
         ]
 
-    ydl_opts: dict[str, Any] = {
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "format": selected_format,
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["tvhtml5", "ios", "android", "web"],
-                "player_skip": ["configs", "auth-comment-box"],
-            }
-        },
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Origin": "https://www.youtube.com",
-            "Referer": "https://www.youtube.com/",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        },
-    }
-
     cookies_file = await get_cookies_file()
     if cookies_file:
         ydl_opts["cookiefile"] = cookies_file
@@ -344,22 +324,39 @@ async def stream_youtube_bytes(
     resolved_url = ""
     for tentativa in range(MAX_RETRIES):
         try:
-            with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-                info = ydl.extract_info(url_real, download=False) or {}
-                video_title = str(info.get("title", video_title))
-                formats = list(info.get("formats", []))
+            # Tentar múltiplos formatos em ordem de preferência
+            formatos_para_tentar = [selected_format]
+            if ext in ("mp3", "m4a"):
+                formatos_para_tentar.extend(["bestaudio", "best", "worstaudio/worst"])
+            elif ext == "mp4":
+                formatos_para_tentar.extend(["best[ext=mp4]", "best", "worst"])
+            else:
+                formatos_para_tentar.extend(["best", "worst"])
 
-                # Tentar requested_formats primeiro
-                requested_formats = list(info.get("requested_formats", []))
-                if requested_formats:
-                    merged_formats = requested_formats + formats
-                else:
-                    merged_formats = formats
+            for fmt_try in formatos_para_tentar:
+                try:
+                    ydl_opts_try = {**ydl_opts, "format": fmt_try}
+                    with yt_dlp.YoutubeDL(cast(Any, ydl_opts_try)) as ydl:
+                        info = ydl.extract_info(url_real, download=False) or {}
+                        video_title = str(info.get("title", video_title))
+                        formats = list(info.get("formats", []))
 
-                resolved_url = extrair_url_stream_robusta(merged_formats, ext)
+                        # Tentar requested_formats primeiro
+                        requested_formats = list(info.get("requested_formats", []))
+                        if requested_formats:
+                            merged_formats = requested_formats + formats
+                        else:
+                            merged_formats = formats
 
-                if resolved_url:
-                    break
+                        resolved_url = extrair_url_stream_robusta(merged_formats, ext)
+
+                        if resolved_url:
+                            break
+                except Exception:
+                    continue
+
+            if resolved_url:
+                break
         except Exception:
             resolved_url = ""
             if tentativa < MAX_RETRIES - 1:
