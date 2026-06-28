@@ -71,7 +71,7 @@
 
         function getUrlToken() {
             const params = new URLSearchParams(window.location.search);
-            const urlToken = params.get('token');
+            const urlToken = params.get('token') || params.get('token:');
             if (urlToken) {
                 localStorage.setItem('premium_token', urlToken);
                 return urlToken;

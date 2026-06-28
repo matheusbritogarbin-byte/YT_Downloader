@@ -34,11 +34,6 @@ async def admin_panel():
     return FileResponse(os.path.join(frontend_path, "admin.html"))
 
 
-@app.get("/debug.html", response_class=HTMLResponse)
-async def debug_panel():
-    return FileResponse(os.path.join(frontend_path, "debug.html"))
-
-
 @app.get("/success.html", response_class=HTMLResponse)
 async def success_panel():
     return FileResponse(os.path.join(frontend_path, "success.html"))
