@@ -39,11 +39,6 @@ async def debug_panel():
     return FileResponse(os.path.join(frontend_path, "debug.html"))
 
 
-@app.get("/formatos.html", response_class=HTMLResponse)
-async def formatos_panel():
-    return FileResponse(os.path.join(frontend_path, "formatos.html"))
-
-
 @app.get("/success.html", response_class=HTMLResponse)
 async def success_panel():
     return FileResponse(os.path.join(frontend_path, "success.html"))

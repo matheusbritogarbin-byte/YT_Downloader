@@ -169,7 +169,7 @@ async def process_youtube_video(
         raise HTTPException(status_code=400, detail="Nenhum item enviado.")
 
     for item in request.items:
-        if not YOUTUBE_REGEX.match(item.url.trim()):
+        if not YOUTUBE_REGEX.match(item.url.strip()):
             raise HTTPException(status_code=400, detail=f"URL inválida: {item.url}")
 
     # Usar X-Forwarded-For como fallback para IP real do cliente
