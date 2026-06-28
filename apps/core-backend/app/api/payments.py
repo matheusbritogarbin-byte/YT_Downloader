@@ -25,14 +25,20 @@ async def get_email_from_customer(customer_id: str) -> str | None:
         return None
 
 
-async def activate_premium(email: str) -> None:
+async def activate_premium(email: str, session_id: str | None = None) -> None:
     await redis_client.setex(f"premium:status:{email}", 31536000, "active")
     await redis_client.setex(f"premium:token:{email}", 31536000, email)
+    if session_id:
+        await redis_client.setex(f"premium:status:{session_id}", 31536000, "active")
+        await redis_client.setex(f"premium:token:{session_id}", 31536000, email)
 
 
-async def deactivate_premium(email: str) -> None:
+async def deactivate_premium(email: str, session_id: str | None = None) -> None:
     await redis_client.delete(f"premium:status:{email}")
     await redis_client.delete(f"premium:token:{email}")
+    if session_id:
+        await redis_client.delete(f"premium:status:{session_id}")
+        await redis_client.delete(f"premium:token:{session_id}")
 
 
 class CreateCheckoutRequest(BaseModel):
@@ -105,8 +111,9 @@ async def stripe_webhook(request: Request):
         email = session.get("metadata", {}).get("email") or session.get(
             "customer_email"
         )
-        if email:
-            await activate_premium(email)
+        session_id = session.get("id")
+        if email and session_id:
+            await activate_premium(email, session_id)
 
     elif event_type == "customer.subscription.created":
         subscription = event["data"]["object"]
@@ -127,18 +134,20 @@ async def stripe_webhook(request: Request):
     elif event_type == "customer.subscription.deleted":
         subscription = event["data"]["object"]
         customer_id = subscription.get("customer")
+        session_id = subscription.get("metadata", {}).get("session_id")
         if customer_id:
             email = await get_email_from_customer(customer_id)
             if email:
-                await deactivate_premium(email)
+                await deactivate_premium(email, session_id)
 
     elif event_type == "customer.subscription.paused":
         subscription = event["data"]["object"]
         customer_id = subscription.get("customer")
+        session_id = subscription.get("metadata", {}).get("session_id")
         if customer_id:
             email = await get_email_from_customer(customer_id)
             if email:
-                await deactivate_premium(email)
+                await deactivate_premium(email, session_id)
 
     elif event_type == "customer.subscription.updated":
         subscription = event["data"]["object"]
@@ -152,21 +161,23 @@ async def stripe_webhook(request: Request):
             "incomplete_expired",
         }
         customer_id = subscription.get("customer")
+        session_id = subscription.get("metadata", {}).get("session_id")
         if customer_id:
             email = await get_email_from_customer(customer_id)
             if email:
                 if status in negative_statuses:
-                    await deactivate_premium(email)
+                    await deactivate_premium(email, session_id)
                 else:
-                    await activate_premium(email)
+                    await activate_premium(email, session_id)
 
     elif event_type == "invoice.payment_failed":
         invoice = event["data"]["object"]
         customer_id = invoice.get("customer")
+        session_id = invoice.get("metadata", {}).get("session_id")
         if customer_id:
             email = await get_email_from_customer(customer_id)
             if email:
-                await deactivate_premium(email)
+                await deactivate_premium(email, session_id)
 
     return {"status": "ok"}
 
