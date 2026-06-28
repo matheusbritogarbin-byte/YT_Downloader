@@ -35,24 +35,24 @@ def main():
         print(f"💡 Exporte os cookies do YouTube e salve como '{DEFAULT_FILE}' na raiz")
         sys.exit(1)
 
-    with open(cookies_path, "rb") as f:
-        files = {"file": (cookies_path.name, f, "text/plain")}
-        headers = {"X-Admin-Token": ADMIN_TOKEN}
-        url = f"{RAILWAY_URL}/api/v1/admin/cookies/upload"
+    cookies_text = cookies_path.read_text(encoding="utf-8")
+    headers = {"X-Admin-Token": ADMIN_TOKEN, "Content-Type": "application/json"}
+    url = f"{RAILWAY_URL}/api/v1/admin/cookies/save"
+    payload = {"cookies_text": cookies_text}
 
-        try:
-            resp = requests.post(url, headers=headers, files=files, timeout=30)
-            if resp.status_code == 200:
-                print(f"✅ Cookies enviados! Válidos por 30 dias.")
-            elif resp.status_code == 401:
-                print("❌ Token inválido. Verifique ADMIN_SECRET_TOKEN")
-                sys.exit(1)
-            else:
-                print(f"❌ Erro {resp.status_code}: {resp.text}")
-                sys.exit(1)
-        except requests.exceptions.ConnectionError:
-            print(f"❌ Não foi possível conectar a {RAILWAY_URL}")
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        if resp.status_code == 200:
+            print("✅ Cookies enviados! Válidos por 30 dias.")
+        elif resp.status_code == 401:
+            print("❌ Token inválido. Verifique ADMIN_SECRET_TOKEN")
             sys.exit(1)
+        else:
+            print(f"❌ Erro {resp.status_code}: {resp.text}")
+            sys.exit(1)
+    except requests.exceptions.ConnectionError:
+        print(f"❌ Não foi possível conectar a {RAILWAY_URL}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
