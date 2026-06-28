@@ -208,8 +208,7 @@
 
             const token = getUrlToken();
             const payloadItems = urlSanitizada.map(url => ({ url: url, quality_profile: qualityProfile }));
-            const payloadBody = { items: payloadItems };
-            if (token) payloadBody.token = token;
+            const payloadBody = { items: payloadItems, token: token };
 
             try {
                 const response = await fetch(`${API_BASE_URL}api/v1/download/processar`, {

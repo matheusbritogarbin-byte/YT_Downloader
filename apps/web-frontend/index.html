@@ -209,13 +209,17 @@
             }
 
             try {
+                const token = localStorage.getItem('premium_token');
                 const response = await fetch(`${API_BASE_URL}api/v1/download/processar`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
                     },
-                    body: JSON.stringify({ items: [{ url: urlFormatada, quality_profile: "mp3_128k" }] })
+                    body: JSON.stringify({ 
+                        items: [{ url: urlFormatada, quality_profile: "mp3_128k" }],
+                        token: token
+                    })
                 });
 
                 if (response.status === 403) {
