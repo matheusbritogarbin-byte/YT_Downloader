@@ -603,3 +603,12 @@ async def buscar_cookies(fastapi_request: Request) -> dict[str, str]:
     _validar_admin_token(fastapi_request)
     cookies = await redis_client.get("yt_cookies")
     return {"cookies": cookies or ""}
+
+
+@router.post("/cookies/save-file")
+async def save_cookies_file(fastapi_request: Request) -> dict[str, str]:
+    data = await fastapi_request.json()
+    cookies_text = data.get("cookies_text", "")
+    _validar_admin_token(fastapi_request)
+    await redis_client.setex("yt_cookies", 2592000, cookies_text)  # 30 dias
+    return {"status": "ok", "mensagem": "Cookies salvos com sucesso!"}

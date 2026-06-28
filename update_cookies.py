@@ -37,7 +37,7 @@ def main():
 
     cookies_text = cookies_path.read_text(encoding="utf-8")
     headers = {"X-Admin-Token": ADMIN_TOKEN, "Content-Type": "application/json"}
-    url = f"{RAILWAY_URL}/api/v1/admin/cookies/save"
+    url = f"{RAILWAY_URL}/api/v1/download/cookies/save-file"
     payload = {"cookies_text": cookies_text}
 
     try:
