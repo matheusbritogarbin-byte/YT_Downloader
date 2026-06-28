@@ -19,7 +19,9 @@ if env_path.exists():
                 key, value = line.split("=", 1)
                 os.environ.setdefault(key.strip(), value.strip())
 
-RAILWAY_URL = os.getenv("RAILWAY_URL", "https://yt-downloader-max.up.railway.app")
+RAILWAY_URL = os.getenv(
+    "RAILWAY_URL", "https://backend-production-5a6c0.up.railway.app"
+)
 ADMIN_TOKEN = os.getenv("ADMIN_SECRET_TOKEN", "@Matheus07052008")
 DEFAULT_FILE = "cookies.txt"
 
