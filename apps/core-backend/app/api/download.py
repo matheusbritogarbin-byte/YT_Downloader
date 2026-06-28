@@ -59,9 +59,14 @@ async def is_premium_user(token: str | None) -> bool:
 
 
 async def verificar_quota(ip: str, token: str | None) -> None:
-    """Verifica se o IP já atingiu o limite diário gratuito."""
+    """Verifica se o IP já atingiu o limite diário gratuito.
+
+    Usuários premium (token ativo) são liberados imediatamente sem tocar no Redis de quota.
+    Esta função também garante que apenas usuários NÃO premium sejam rate-limited.
+    """
     if await is_premium_user(token):
         return
+    # Apenas usuários free chegam aqui
     hoje = datetime.now().strftime("%Y-%m-%d")
     quota_key = f"quota:ip:{ip}:{hoje}"
     count = int(await redis_client.get(quota_key) or 0)
@@ -164,7 +169,7 @@ async def process_youtube_video(
         raise HTTPException(status_code=400, detail="Nenhum item enviado.")
 
     for item in request.items:
-        if not YOUTUBE_REGEX.match(item.url.strip()):
+        if not YOUTUBE_REGEX.match(item.url.trim()):
             raise HTTPException(status_code=400, detail=f"URL inválida: {item.url}")
 
     # Usar X-Forwarded-For como fallback para IP real do cliente
@@ -174,7 +179,15 @@ async def process_youtube_video(
         if forwarded_ip
         else (fastapi_request.client.host if fastapi_request.client else "unknown")
     )
-    await verificar_quota(ip, request.token)
+
+    # Garantir que o token está presente — se não veio no body, tentar extrair de headers/query
+    token = request.token
+    if not token:
+        token = fastapi_request.headers.get(
+            "X-Premium-Token"
+        ) or fastapi_request.query_params.get("token")
+
+    await verificar_quota(ip, token)
 
     tasks = [processar_item_async(item) for item in request.items]
     raw_results = await asyncio.gather(*tasks)
