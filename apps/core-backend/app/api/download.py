@@ -50,12 +50,18 @@ class BatchDownloadResponse(BaseModel):
     results: list[DownloadResponseItem]
 
 
+async def is_premium_user(token: str | None) -> bool:
+    """Verifica se o token corresponde a um usuário premium ativo."""
+    if not token:
+        return False
+    status = await redis_client.get(f"premium:status:{token}")
+    return status == "active"
+
+
 async def verificar_quota(ip: str, token: str | None) -> None:
     """Verifica se o IP já atingiu o limite diário gratuito."""
-    if token:
-        is_premium = await redis_client.get(f"premium:status:{token}")
-        if is_premium == "active":
-            return
+    if await is_premium_user(token):
+        return
     hoje = datetime.now().strftime("%Y-%m-%d")
     quota_key = f"quota:ip:{ip}:{hoje}"
     count = int(await redis_client.get(quota_key) or 0)
@@ -197,8 +203,8 @@ async def process_youtube_video(
             )
         )
 
-    # Só incrementa quota se houver pelo menos um download bem-sucedido
-    if sucessos > 0:
+    # Só incrementa quota se houver pelo menos um download bem-sucedido E NÃO for premium
+    if sucessos > 0 and not await is_premium_user(request.token):
         await incrementar_quota(ip)
 
     return BatchDownloadResponse(results=results_list)
