@@ -17,6 +17,24 @@ redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 redis_client = aioredis.from_url(redis_url, decode_responses=True)
 
 
+async def get_email_from_customer(customer_id: str) -> str | None:
+    try:
+        customer = stripe.Customer.retrieve(customer_id)
+        return customer.get("email")
+    except Exception:
+        return None
+
+
+async def activate_premium(email: str) -> None:
+    await redis_client.setex(f"premium:status:{email}", 31536000, "active")
+    await redis_client.setex(f"premium:token:{email}", 31536000, email)
+
+
+async def deactivate_premium(email: str) -> None:
+    await redis_client.delete(f"premium:status:{email}")
+    await redis_client.delete(f"premium:token:{email}")
+
+
 class CreateCheckoutRequest(BaseModel):
     email: str
     success_url: str
@@ -80,12 +98,75 @@ async def stripe_webhook(request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Webhook inválido.")
 
-    if event["type"] == "checkout.session.completed":
+    event_type = event["type"]
+
+    if event_type == "checkout.session.completed":
         session = event["data"]["object"]
-        email = session.get("metadata", {}).get("email")
+        email = session.get("metadata", {}).get("email") or session.get(
+            "customer_email"
+        )
         if email:
-            await redis_client.setex(f"premium:status:{email}", 31536000, "active")
-            await redis_client.setex(f"premium:token:{email}", 31536000, email)
+            await activate_premium(email)
+
+    elif event_type == "customer.subscription.created":
+        subscription = event["data"]["object"]
+        customer_id = subscription.get("customer")
+        if customer_id:
+            email = await get_email_from_customer(customer_id)
+            if email:
+                await activate_premium(email)
+
+    elif event_type == "customer.subscription.payment_succeeded":
+        invoice = event["data"]["object"]
+        customer_id = invoice.get("customer")
+        if customer_id:
+            email = await get_email_from_customer(customer_id)
+            if email:
+                await activate_premium(email)
+
+    elif event_type == "customer.subscription.deleted":
+        subscription = event["data"]["object"]
+        customer_id = subscription.get("customer")
+        if customer_id:
+            email = await get_email_from_customer(customer_id)
+            if email:
+                await deactivate_premium(email)
+
+    elif event_type == "customer.subscription.paused":
+        subscription = event["data"]["object"]
+        customer_id = subscription.get("customer")
+        if customer_id:
+            email = await get_email_from_customer(customer_id)
+            if email:
+                await deactivate_premium(email)
+
+    elif event_type == "customer.subscription.updated":
+        subscription = event["data"]["object"]
+        status = subscription.get("status")
+        negative_statuses = {
+            "canceled",
+            "past_due",
+            "unpaid",
+            "paused",
+            "incomplete",
+            "incomplete_expired",
+        }
+        customer_id = subscription.get("customer")
+        if customer_id:
+            email = await get_email_from_customer(customer_id)
+            if email:
+                if status in negative_statuses:
+                    await deactivate_premium(email)
+                else:
+                    await activate_premium(email)
+
+    elif event_type == "invoice.payment_failed":
+        invoice = event["data"]["object"]
+        customer_id = invoice.get("customer")
+        if customer_id:
+            email = await get_email_from_customer(customer_id)
+            if email:
+                await deactivate_premium(email)
 
     return {"status": "ok"}
 
