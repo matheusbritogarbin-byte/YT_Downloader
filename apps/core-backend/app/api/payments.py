@@ -227,3 +227,32 @@ async def admin_deactivate_premium(
     session_id = request.session_id if request.session_id else None
     await deactivate_premium(request.email, session_id)
     return {"status": "ok", "mensagem": f"Premium desativado para {request.email}"}
+
+
+@router.post("/admin/cookies/save")
+async def salvar_cookies(fastapi_request: Request) -> dict[str, str]:
+    data = await fastapi_request.json()
+    cookies_text = data.get("cookies_text", "")
+    _validar_admin_token(fastapi_request)
+    await redis_client.setex("yt_cookies", 2592000, cookies_text)  # 30 dias
+    return {"status": "ok", "mensagem": "Cookies salvos com sucesso!"}
+
+
+@router.post("/admin/cookies/upload")
+async def upload_cookies(fastapi_request: Request) -> dict[str, str]:
+    _validar_admin_token(fastapi_request)
+    form = await fastapi_request.form()
+    file = form.get("file")
+    if not file:
+        raise HTTPException(status_code=400, detail="Nenhum arquivo enviado.")
+    content = await file.read()
+    cookies_text = content.decode("utf-8")
+    await redis_client.setex("yt_cookies", 2592000, cookies_text)  # 30 dias
+    return {"status": "ok", "mensagem": "Cookies enviados com sucesso!"}
+
+
+@router.get("/admin/cookies/get")
+async def buscar_cookies(fastapi_request: Request) -> dict[str, str]:
+    _validar_admin_token(fastapi_request)
+    cookies = await redis_client.get("yt_cookies")
+    return {"cookies": cookies or ""}

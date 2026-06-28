@@ -228,11 +228,11 @@ async def get_cookies_file() -> str | None:
     try:
         cookies_text = await redis_client.get("yt_cookies")
         if not cookies_text:
-            local_path = os.path.join(
-                os.path.dirname(__file__), "../../../youtube_cookies.txt"
-            )
-            if os.path.exists(local_path):
-                return local_path
+            base = os.path.dirname(__file__)
+            for name in ["youtube_cookies.txt", "cookies.txt"]:
+                local_path = os.path.join(base, "../../../", name)
+                if os.path.exists(local_path):
+                    return local_path
             return None
         import tempfile
 
