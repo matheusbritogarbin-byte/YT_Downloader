@@ -9,6 +9,15 @@ from app.core import settings
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
+ADMIN_TOKEN = os.getenv("ADMIN_SECRET_TOKEN", "@Matheus07052008")
+
+
+def _validar_admin_token(request: Request) -> None:
+    token_header = request.headers.get("X-Admin-Token")
+    if not token_header or token_header != ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="Acesso proibido.")
+
+
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 PRICE_ID = os.getenv("STRIPE_PRICE_ID", "")
@@ -182,9 +191,39 @@ async def stripe_webhook(request: Request):
     return {"status": "ok"}
 
 
+class AdminActivateRequest(BaseModel):
+    email: str
+    session_id: str | None = None
+
+
+class AdminDeactivateRequest(BaseModel):
+    email: str
+    session_id: str | None = None
+
+
 @router.get("/status", response_model=StatusResponse)
 async def get_premium_status(email: str):
     status = await redis_client.get(f"premium:status:{email}")
     if status == "active":
         return {"premium_active": True, "email": email}
     return {"premium_active": False, "email": None}
+
+
+@router.post("/admin/activate")
+async def admin_activate_premium(
+    request: AdminActivateRequest, fastapi_request: Request
+):
+    _validar_admin_token(fastapi_request)
+    session_id = request.session_id if request.session_id else None
+    await activate_premium(request.email, session_id)
+    return {"status": "ok", "mensagem": f"Premium ativado para {request.email}"}
+
+
+@router.post("/admin/deactivate")
+async def admin_deactivate_premium(
+    request: AdminDeactivateRequest, fastapi_request: Request
+):
+    _validar_admin_token(fastapi_request)
+    session_id = request.session_id if request.session_id else None
+    await deactivate_premium(request.email, session_id)
+    return {"status": "ok", "mensagem": f"Premium desativado para {request.email}"}
