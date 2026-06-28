@@ -71,7 +71,11 @@
 
         function getUrlToken() {
             const params = new URLSearchParams(window.location.search);
-            const urlToken = params.get('token') || params.get('token:');
+            let urlToken = params.get('token') || params.get('token:');
+            if (!urlToken) {
+                const match = window.location.search.match(/[?&]token[:=]([^&]+)/);
+                if (match) urlToken = match[1];
+            }
             if (urlToken) {
                 localStorage.setItem('premium_token', urlToken);
                 return urlToken;

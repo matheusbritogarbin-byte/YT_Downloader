@@ -35,11 +35,11 @@ async def get_email_from_customer(customer_id: str) -> str | None:
 
 
 async def activate_premium(email: str, session_id: str | None = None) -> None:
-    await redis_client.setex(f"premium:status:{email}", 31536000, "active")
-    await redis_client.setex(f"premium:token:{email}", 31536000, email)
+    await redis_client.set(f"premium:status:{email}", "active")
+    await redis_client.set(f"premium:token:{email}", email)
     if session_id:
-        await redis_client.setex(f"premium:status:{session_id}", 31536000, "active")
-        await redis_client.setex(f"premium:token:{session_id}", 31536000, email)
+        await redis_client.set(f"premium:status:{session_id}", "active")
+        await redis_client.set(f"premium:token:{session_id}", email)
 
 
 async def deactivate_premium(email: str, session_id: str | None = None) -> None:
