@@ -278,7 +278,7 @@ async def stream_youtube_bytes(
     if ext in ("mp3", "m4a"):
         selected_format = "bestaudio/best"
     else:
-        selected_format = "best[ext=mp4]/best"
+        selected_format = "best"
 
     postprocessors = None
     if ext == "mp3":
