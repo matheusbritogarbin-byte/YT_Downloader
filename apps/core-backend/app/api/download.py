@@ -343,12 +343,20 @@ async def stream_youtube_bytes(
         ydl_opts["postprocessors"] = postprocessors
 
     def extrair_url_stream_robusta(formats: list[dict[str, Any]], ext: str) -> str:
-        """Varre formats procurando por URL de stream progressiva direta."""
+        """Varre formats procurando por URL de stream com melhor qualidade."""
         if not formats:
             return ""
-        # Para áudio: aceitar apenas acodec presente (vcodec pode ser none em DASH)
+
+        # Ordenar por altura (maior primeiro) para priorizar HD
+        def get_height(fmt: dict[str, Any]) -> int:
+            h = fmt.get("height")
+            return int(h) if isinstance(h, (int, str)) and str(h).isdigit() else 0
+
+        sorted_formats = sorted(formats, key=get_height, reverse=True)
+
+        # Para áudio: aceitar apenas acodec presente
         if ext in ("mp3", "m4a"):
-            for fmt in reversed(formats):
+            for fmt in sorted_formats:
                 url = fmt.get("url", "")
                 if not url or not str(url).startswith("http"):
                     continue
@@ -356,22 +364,44 @@ async def stream_youtube_bytes(
                 ext_fmt = fmt.get("ext", "")
                 if acodec != "none" and ext_fmt in ["mp3", "m4a", "webm", "mp4"]:
                     return str(url)
-        # Para vídeo: exigir ambos audio e video
-        for fmt in reversed(formats):
+
+        # Para vídeo: Prioridade 1 = formato completo (acodec + vcodec), Prioridade 2 = maior altura
+        completo_maior_altura = 0
+        url_completo = ""
+        video_maior_altura = 0
+        url_video = ""
+
+        for fmt in sorted_formats:
             url = fmt.get("url", "")
             if not url or not str(url).startswith("http"):
                 continue
             acodec = fmt.get("acodec", "none")
             vcodec = fmt.get("vcodec", "none")
             ext_fmt = fmt.get("ext", "")
-            if (
-                acodec != "none"
-                and vcodec != "none"
-                and ext_fmt in ["mp4", "m4a", "mp3", "webm"]
-            ):
-                return str(url)
+            altura = get_height(fmt)
+
+            if ext_fmt not in ["mp4", "m4a", "mp3", "webm"]:
+                continue
+
+            # Formato completo (tem vídeo e áudio)
+            if acodec != "none" and vcodec != "none":
+                if altura > completo_maior_altura:
+                    completo_maior_altura = altura
+                    url_completo = str(url)
+            # Formato só vídeo (DASH)
+            elif vcodec != "none" and acodec == "none":
+                if altura > video_maior_altura:
+                    video_maior_altura = altura
+                    url_video = str(url)
+
+        # Priorizar formato completo, senão cair para só vídeo
+        if url_completo:
+            return url_completo
+        if url_video:
+            return url_video
+
         # Último fallback: qualquer URL HTTP válida
-        for fmt in reversed(formats):
+        for fmt in sorted_formats:
             url = fmt.get("url", "")
             if url and str(url).startswith("http"):
                 return str(url)
