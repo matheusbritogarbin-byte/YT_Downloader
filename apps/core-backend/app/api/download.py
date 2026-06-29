@@ -279,7 +279,7 @@ async def stream_youtube_bytes(
     if ext in ("mp3", "m4a"):
         selected_format = "bestaudio/best"
     elif ext == "mp4":
-        selected_format = "best[ext=mp4]/best[protocol=http]/best"
+        selected_format = "bestvideo[height<=360]+bestaudio/best[height<=360]"
     else:
         selected_format = "best"
 
@@ -312,10 +312,10 @@ async def stream_youtube_bytes(
         "no_warnings": True,
         "noplaylist": True,
         "format": selected_format,
+        "merge_output_format": "mp4",
         "extractor_args": {
             "youtube": {
                 "player_client": ["tvhtml5", "ios", "android", "web"],
-                "player_skip": ["configs", "auth-comment-box"],
             }
         },
         "http_headers": {
