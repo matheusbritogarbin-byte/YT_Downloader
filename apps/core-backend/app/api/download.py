@@ -277,18 +277,15 @@ async def stream_youtube_bytes(
 
     # Mapeamento de qualidade → formato yt-dlp
     FORMAT_MAP = {
-        "mp4_360p": "best[height>=360][ext=mp4]/best[height>=360]/best[ext=mp4]/best",
-        "mp4_480p": "best[height>=480][ext=mp4]/best[height>=480]/best[ext=mp4]/best",
-        "mp4_720p": "best[height>=720][ext=mp4]/best[height>=720]/best[ext=mp4]/best",
+        "mp4_360p": "best[ext=mp4]/best",
+        "mp4_480p": "best[ext=mp4]/best",
+        "mp4_720p": "best[ext=mp4]/best",
         "mp3_128k": "bestaudio/best",
         "mp3_192k": "bestaudio/best",
         "mp3_320k": "bestaudio/best",
-        "mp4_max": "best[height>=720][ext=mp4]/best[height>=720]/best[ext=mp4]/best",
+        "mp4_max": "best[ext=mp4]/best",
     }
-    selected_format = FORMAT_MAP.get(
-        quality_profile,
-        "best[height>=360][ext=mp4]/best[height>=360]/best[ext=mp4]/best",
-    )
+    selected_format = FORMAT_MAP.get(quality_profile, "best[ext=mp4]/best")
     if ext in ("mp3", "m4a") and quality_profile not in FORMAT_MAP:
         selected_format = "bestaudio/best"
 
@@ -415,17 +412,8 @@ async def stream_youtube_bytes(
             formatos_para_tentar = [selected_format]
             if ext in ("mp3", "m4a"):
                 formatos_para_tentar.extend(["bestaudio", "best", "worstaudio/worst"])
-            elif ext == "mp4":
-                formatos_para_tentar.extend(
-                    [
-                        "bestvideo+bestaudio",
-                        "best[ext=mp4]",
-                        "best",
-                        "worst",
-                    ]
-                )
             else:
-                formatos_para_tentar.extend(["best", "worst"])
+                formatos_para_tentar.extend(["best[ext=mp4]", "best", "worst"])
 
             for fmt_try in formatos_para_tentar:
                 try:
