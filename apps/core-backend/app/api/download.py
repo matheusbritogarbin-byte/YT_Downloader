@@ -2,16 +2,19 @@ import asyncio
 import os
 import re
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, cast
 import httpx
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 import redis.asyncio as aioredis
 
 router = APIRouter(prefix="/download", tags=["Media Downloader"])
 
+CACHE_TTL_SECONDS = 3600
+MAX_RETRIES = 3
+RETRY_DELAYS = [1, 2, 4]
 QUOTA_MAX_FREE_DAILY = 2
 
 YOUTUBE_REGEX = re.compile(
@@ -130,6 +133,15 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
         )
 
     tamanho_estimado = 0
+    if video_id:
+        try:
+            with httpx.Client(timeout=5.0) as client:
+                resp = client.get(f"https://www.youtube.com/watch?v={video_id}")
+                size_match = re.search(r'"contentLength":"(\d+)"', resp.text)
+                if size_match:
+                    tamanho_estimado = int(size_match.group(1))
+        except Exception:
+            pass
 
     return {
         "title": str(title),
@@ -140,22 +152,6 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
         "status": "success" if video_id else "failed",
         "error_message": None if video_id else "Falha ao obter metadados via oEmbed.",
     }
-
-
-async def get_cookies_file() -> str | None:
-    """Busca cookies: env var YT_COOKIES > Redis > arquivo local."""
-    import tempfile
-
-    # 1. Prioridade máxima: variável de ambiente YT_COOKIES
-    env_cookies = os.getenv("YT_COOKIES")
-    if env_cookies and env_cookies.strip():
-        try:
-            temp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-            temp.write(env_cookies.strip())
-            temp.close()
-            return temp.name
-        except Exception:
-            pass
 
 
 async def processar_item_async(item: DownloadItemRequest) -> dict[str, Any]:
@@ -227,12 +223,47 @@ async def process_youtube_video(
     return BatchDownloadResponse(results=results_list)
 
 
+async def get_cookies_file() -> str | None:
+    """Busca cookies: env var YT_COOKIES > Redis > arquivo local."""
+    import tempfile
+
+    # 1. Prioridade máxima: variável de ambiente YT_COOKIES
+    env_cookies = os.getenv("YT_COOKIES")
+    if env_cookies and env_cookies.strip():
+        try:
+            temp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+            temp.write(env_cookies.strip())
+            temp.close()
+            return temp.name
+        except Exception:
+            pass
+
+    # 2. Fallback: Redis (salvo via update_cookies.py)
+    try:
+        cookies_text = await redis_client.get("yt_cookies")
+        if cookies_text and cookies_text.strip():
+            temp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+            temp.write(cookies_text)
+            temp.close()
+            return temp.name
+    except Exception:
+        pass
+
+    # 3. Último fallback: arquivo local
+    base = os.path.dirname(__file__)
+    for name in ["cookies.txt", "youtube_cookies.txt"]:
+        local_path = os.path.join(base, "../../../", name)
+        if os.path.exists(local_path):
+            return local_path
+    return None
+
+
 @router.get("/stream")
 async def stream_youtube_bytes(
     url: str,
     title: str = "video",
     ext: str = "mp3",
-    quality_profile: str = "mp4_360p",
+    quality_profile: str = "mp4_max",
 ) -> StreamingResponse:
     """Stream de áudio/vídeo com qualidade seleccionável."""
     if not url:
@@ -247,17 +278,15 @@ async def stream_youtube_bytes(
     if ext in ("mp3", "m4a"):
         selected_format = "bestaudio/best"
     else:
-        height_map = {"mp4_360p": 360}
-        target_h = height_map.get(quality_profile, 360)
-        selected_format = f"best[height>={target_h}]/best"
+        selected_format = "best[ext=mp4]/best"
 
     postprocessors = None
-    quality_map: dict[str, str] = {}
     if ext == "mp3":
         quality_map = {
             "mp3_320k": "320",
             "mp3_192k": "192",
             "mp3_128k": "128",
+            "mp3_64k": "64",
         }
         postprocessors = [
             {
@@ -276,11 +305,9 @@ async def stream_youtube_bytes(
         ]
 
     ydl_opts: dict[str, Any] = {
-        "cookies": get_cookies_file,
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "force_ipv4": True,
         "format": selected_format,
         "merge_output_format": "mp4",
         "extractor_args": {
@@ -297,17 +324,17 @@ async def stream_youtube_bytes(
         },
     }
 
+    cookies_file = await get_cookies_file()
+    if cookies_file:
+        ydl_opts["cookiefile"] = cookies_file
+
     if postprocessors:
         ydl_opts["postprocessors"] = postprocessors
-    if ext == "mp3":
-        ydl_opts["audioformat"] = "mp3"
-        ydl_opts["audioquality"] = quality_map.get(quality_profile, "320")
 
     def extrair_url_stream_robusta(
-        formats: list[dict[str, Any]],
-        ext: str,
+        formats: list[dict[str, Any]], ext: str, target_h: int = 0
     ) -> str:
-        """Varre formats procurando URL de stream progressiva (video+audio) com maior qualidade."""
+        """Seleciona stream por proximidade de altura (target_h) e tipo."""
         if not formats:
             return ""
 
@@ -372,15 +399,35 @@ async def stream_youtube_bytes(
         return ""
 
     resolved_url = ""
-    try:
-        ydl_opts_try = {**ydl_opts}
-        with yt_dlp.YoutubeDL(cast(Any, ydl_opts_try)) as ydl:
-            info = ydl.extract_info(url_real, download=False) or {}
-            video_title = str(info.get("title", video_title))
-            formats = list(info.get("formats") or [])
-            resolved_url = extrair_url_stream_robusta(formats, ext)
-    except Exception:
-        resolved_url = ""
+    for tentativa in range(MAX_RETRIES):
+        try:
+            formatos_para_tentar = [selected_format]
+            if ext in ("mp3", "m4a"):
+                formatos_para_tentar.extend(["bestaudio", "best", "worstaudio/worst"])
+            else:
+                formatos_para_tentar.extend(["best[ext=mp4]", "best", "worst"])
+
+            for fmt_try in formatos_para_tentar:
+                try:
+                    ydl_opts_try = {**ydl_opts, "format": fmt_try}
+                    with yt_dlp.YoutubeDL(cast(Any, ydl_opts_try)) as ydl:
+                        info = ydl.extract_info(url_real, download=False) or {}
+                        video_title = str(info.get("title", video_title))
+                        formats = list(info.get("formats", []))
+                        resolved_url = extrair_url_stream_robusta(formats, ext)
+
+                        if resolved_url:
+                            break
+                except Exception:
+                    continue
+
+            if resolved_url:
+                break
+        except Exception:
+            resolved_url = ""
+            if tentativa < MAX_RETRIES - 1:
+                await asyncio.sleep(RETRY_DELAYS[tentativa])
+
     if not resolved_url or not str(resolved_url).startswith("http"):
         raise HTTPException(
             status_code=502,
@@ -436,6 +483,55 @@ def _validar_admin_token(request: Request) -> None:
 @router.get("/health")
 async def health_check() -> dict[str, str]:
     return {"status": "ok", "service": "yt-downloader", "version": "2.0"}
+
+
+@router.get("/debug/formats")
+async def debug_formatos(url: str) -> dict[str, Any]:
+    """Endpoint temporário para ver formatos disponíveis."""
+    url_real = urllib.parse.unquote_plus(url)
+    import yt_dlp
+
+    ydl_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "format": "bestvideo+bestaudio/best",
+        "extractor_args": {"youtube": {"player_client": ["web"]}},
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        },
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+            info = ydl.extract_info(url_real, download=False) or {}
+            formats = list(info.get("formats", []))
+
+            top_formatos = []
+            for f in formats[-10:]:
+                top_formatos.append(
+                    {
+                        "format_id": f.get("format_id"),
+                        "ext": f.get("ext"),
+                        "resolution": f.get("resolution"),
+                        "vcodec": f.get("vcodec"),
+                        "acodec": f.get("acodec"),
+                        "filesize": f.get("filesize"),
+                        "height": f.get("height"),
+                        "width": f.get("width"),
+                    }
+                )
+
+            return {
+                "title": info.get("title"),
+                "total_formats": len(formats) if formats else 0,
+                "top_10": top_formatos[::-1],
+                "requested_formats": [
+                    f.get("format_id") for f in list(info.get("requested_formats", []))
+                ],
+            }
+    except Exception as e:
+        return {"erro": str(e)}
 
 
 @router.get("/stats")
