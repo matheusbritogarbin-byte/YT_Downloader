@@ -142,6 +142,22 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
     }
 
 
+async def get_cookies_file() -> str | None:
+    """Busca cookies: env var YT_COOKIES > Redis > arquivo local."""
+    import tempfile
+
+    # 1. Prioridade máxima: variável de ambiente YT_COOKIES
+    env_cookies = os.getenv("YT_COOKIES")
+    if env_cookies and env_cookies.strip():
+        try:
+            temp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+            temp.write(env_cookies.strip())
+            temp.close()
+            return temp.name
+        except Exception:
+            pass
+
+
 async def processar_item_async(item: DownloadItemRequest) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(None, extrair_midia_com_seguranca, str(item.url))
@@ -236,6 +252,7 @@ async def stream_youtube_bytes(
         selected_format = f"best[height>={target_h}]/best"
 
     postprocessors = None
+    quality_map: dict[str, str] = {}
     if ext == "mp3":
         quality_map = {
             "mp3_320k": "320",
@@ -259,6 +276,7 @@ async def stream_youtube_bytes(
         ]
 
     ydl_opts: dict[str, Any] = {
+        "cookies": get_cookies_file,
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
@@ -359,7 +377,7 @@ async def stream_youtube_bytes(
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts_try)) as ydl:
             info = ydl.extract_info(url_real, download=False) or {}
             video_title = str(info.get("title", video_title))
-            formats = list(info.get("formats", []))
+            formats = list(info.get("formats") or [])
             resolved_url = extrair_url_stream_robusta(formats, ext)
     except Exception:
         resolved_url = ""
