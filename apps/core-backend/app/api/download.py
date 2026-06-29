@@ -275,19 +275,21 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = title or "video"
 
-    # Mapeamento de qualidade → formato yt-dlp
-    FORMAT_MAP = {
-        "mp4_360p": "best[ext=mp4]/best",
-        "mp4_480p": "best[ext=mp4]/best",
-        "mp4_720p": "best[ext=mp4]/best",
-        "mp3_128k": "bestaudio/best",
-        "mp3_192k": "bestaudio/best",
-        "mp3_320k": "bestaudio/best",
-        "mp4_max": "best[ext=mp4]/best",
+    # Mapeamento de qualidade → altura alvo (proximidade-based)
+    QUALITY_HEIGHTS = {
+        "mp4_360p": 360,
+        "mp4_480p": 480,
+        "mp4_720p": 720,
+        "mp4_max": 720,
+        "mp3_128k": 0,
+        "mp3_192k": 0,
+        "mp3_320k": 0,
     }
-    selected_format = FORMAT_MAP.get(quality_profile, "best[ext=mp4]/best")
-    if ext in ("mp3", "m4a") and quality_profile not in FORMAT_MAP:
+    target_h = QUALITY_HEIGHTS.get(quality_profile, 360)
+    if ext in ("mp3", "m4a"):
         selected_format = "bestaudio/best"
+    else:
+        selected_format = "bestvideo+bestaudio"
 
     postprocessors = None
     if ext == "mp3":
