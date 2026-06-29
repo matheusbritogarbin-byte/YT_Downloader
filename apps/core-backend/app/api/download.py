@@ -275,21 +275,10 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = title or "video"
 
-    # Mapeamento de qualidade → altura alvo (proximidade-based)
-    QUALITY_HEIGHTS = {
-        "mp4_360p": 360,
-        "mp4_480p": 480,
-        "mp4_720p": 720,
-        "mp4_max": 720,
-        "mp3_128k": 0,
-        "mp3_192k": 0,
-        "mp3_320k": 0,
-    }
-    target_h = QUALITY_HEIGHTS.get(quality_profile, 360)
     if ext in ("mp3", "m4a"):
         selected_format = "bestaudio/best"
     else:
-        selected_format = "bestvideo+bestaudio"
+        selected_format = "best[ext=mp4]/best"
 
     postprocessors = None
     if ext == "mp3":
@@ -416,16 +405,7 @@ async def stream_youtube_bytes(
             if ext in ("mp3", "m4a"):
                 formatos_para_tentar.extend(["bestaudio", "best", "worstaudio/worst"])
             else:
-                formatos_para_tentar.extend(
-                    [
-                        "bestvideo+bestaudio",
-                        "best[ext=mp4]",
-                        "bestvideo[ext=mp4]+bestaudio",
-                        f"bestvideo[height>={target_h}]+bestaudio",
-                        "best",
-                        "worst",
-                    ]
-                )
+                formatos_para_tentar.extend(["best[ext=mp4]", "best", "worst"])
 
             for fmt_try in formatos_para_tentar:
                 try:
@@ -434,17 +414,7 @@ async def stream_youtube_bytes(
                         info = ydl.extract_info(url_real, download=False) or {}
                         video_title = str(info.get("title", video_title))
                         formats = list(info.get("formats", []))
-
-                        # Tentar requested_formats primeiro
-                        requested_formats = list(info.get("requested_formats", []))
-                        if requested_formats:
-                            merged_formats = requested_formats + formats
-                        else:
-                            merged_formats = formats
-
-                        resolved_url = extrair_url_stream_robusta(
-                            merged_formats, ext, target_h=target_h
-                        )
+                        resolved_url = extrair_url_stream_robusta(formats, ext)
 
                         if resolved_url:
                             break
