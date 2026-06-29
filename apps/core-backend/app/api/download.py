@@ -275,10 +275,13 @@ async def stream_youtube_bytes(
     resolved_url = ""
     video_title = title or "video"
 
+    # Formato adaptado por tipo de mídia
     if ext in ("mp3", "m4a"):
         selected_format = "bestaudio/best"
+    elif ext == "mp4":
+        selected_format = "best[ext=mp4]/best[protocol=http]/best"
     else:
-        selected_format = "best[ext=mp4]/best"
+        selected_format = "best"
 
     postprocessors = None
     if ext == "mp3":
@@ -309,10 +312,10 @@ async def stream_youtube_bytes(
         "no_warnings": True,
         "noplaylist": True,
         "format": selected_format,
-        "merge_output_format": "mp4",
         "extractor_args": {
             "youtube": {
                 "player_client": ["tvhtml5", "ios", "android", "web"],
+                "player_skip": ["configs", "auth-comment-box"],
             }
         },
         "http_headers": {
@@ -331,23 +334,13 @@ async def stream_youtube_bytes(
     if postprocessors:
         ydl_opts["postprocessors"] = postprocessors
 
-    def extrair_url_stream_robusta(
-        formats: list[dict[str, Any]], ext: str, target_h: int = 0
-    ) -> str:
-        """Seleciona stream por proximidade de altura (target_h) e tipo."""
+    def extrair_url_stream_robusta(formats: list[dict[str, Any]], ext: str) -> str:
+        """Varre formats procurando por URL de stream progressiva direta."""
         if not formats:
             return ""
-
-        # Ordenar por altura (maior primeiro) para priorizar HD
-        def get_height(fmt: dict[str, Any]) -> int:
-            h = fmt.get("height")
-            return int(h) if isinstance(h, (int, str)) and str(h).isdigit() else 0
-
-        sorted_formats = sorted(formats, key=get_height, reverse=True)
-
-        # Para áudio: aceitar apenas acodec presente
+        # Para áudio: aceitar apenas acodec presente (vcodec pode ser none em DASH)
         if ext in ("mp3", "m4a"):
-            for fmt in sorted_formats:
+            for fmt in reversed(formats):
                 url = fmt.get("url", "")
                 if not url or not str(url).startswith("http"):
                     continue
@@ -355,44 +348,22 @@ async def stream_youtube_bytes(
                 ext_fmt = fmt.get("ext", "")
                 if acodec != "none" and ext_fmt in ["mp3", "m4a", "webm", "mp4"]:
                     return str(url)
-
-        # Para vídeo: Prioridade 1 = formato completo (acodec + vcodec), Prioridade 2 = maior altura
-        completo_maior_altura = 0
-        url_completo = ""
-        video_maior_altura = 0
-        url_video = ""
-
-        for fmt in sorted_formats:
+        # Para vídeo: exigir ambos audio e video
+        for fmt in reversed(formats):
             url = fmt.get("url", "")
             if not url or not str(url).startswith("http"):
                 continue
             acodec = fmt.get("acodec", "none")
             vcodec = fmt.get("vcodec", "none")
             ext_fmt = fmt.get("ext", "")
-            altura = get_height(fmt)
-
-            if ext_fmt not in ["mp4", "m4a", "mp3", "webm"]:
-                continue
-
-            # Formato completo (tem vídeo e áudio)
-            if acodec != "none" and vcodec != "none":
-                if altura > completo_maior_altura:
-                    completo_maior_altura = altura
-                    url_completo = str(url)
-            # Formato só vídeo (DASH)
-            elif vcodec != "none" and acodec == "none":
-                if altura > video_maior_altura:
-                    video_maior_altura = altura
-                    url_video = str(url)
-
-        # Priorizar formato completo, senão cair para só vídeo
-        if url_completo:
-            return url_completo
-        if url_video:
-            return url_video
-
+            if (
+                acodec != "none"
+                and vcodec != "none"
+                and ext_fmt in ["mp4", "m4a", "mp3", "webm"]
+            ):
+                return str(url)
         # Último fallback: qualquer URL HTTP válida
-        for fmt in sorted_formats:
+        for fmt in reversed(formats):
             url = fmt.get("url", "")
             if url and str(url).startswith("http"):
                 return str(url)
@@ -401,11 +372,14 @@ async def stream_youtube_bytes(
     resolved_url = ""
     for tentativa in range(MAX_RETRIES):
         try:
+            # Tentar múltiplos formatos em ordem de preferência
             formatos_para_tentar = [selected_format]
             if ext in ("mp3", "m4a"):
                 formatos_para_tentar.extend(["bestaudio", "best", "worstaudio/worst"])
-            else:
+            elif ext == "mp4":
                 formatos_para_tentar.extend(["best[ext=mp4]", "best", "worst"])
+            else:
+                formatos_para_tentar.extend(["best", "worst"])
 
             for fmt_try in formatos_para_tentar:
                 try:
@@ -414,7 +388,15 @@ async def stream_youtube_bytes(
                         info = ydl.extract_info(url_real, download=False) or {}
                         video_title = str(info.get("title", video_title))
                         formats = list(info.get("formats", []))
-                        resolved_url = extrair_url_stream_robusta(formats, ext)
+
+                        # Tentar requested_formats primeiro
+                        requested_formats = list(info.get("requested_formats", []))
+                        if requested_formats:
+                            merged_formats = requested_formats + formats
+                        else:
+                            merged_formats = formats
+
+                        resolved_url = extrair_url_stream_robusta(merged_formats, ext)
 
                         if resolved_url:
                             break
