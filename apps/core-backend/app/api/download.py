@@ -277,16 +277,16 @@ async def stream_youtube_bytes(
 
     # Mapeamento de qualidade → formato yt-dlp
     FORMAT_MAP = {
-        "mp4_360p": "bestvideo[height=360]+bestaudio/best[height=360]",
-        "mp4_480p": "bestvideo[height=480]+bestaudio/best[height=480]",
-        "mp4_720p": "bestvideo[height=720]+bestaudio/best[height=720]",
+        "mp4_360p": "bestvideo[height>=360]+bestaudio/best[height>=360]",
+        "mp4_480p": f"bestvideo[height>=480]+bestaudio[ext=m4a]/best[height>=480]/best",
+        "mp4_720p": f"bestvideo[height>=720]+bestaudio[ext=m4a]/best[height>=720]/best",
         "mp3_128k": "bestaudio/best",
         "mp3_192k": "bestaudio/best",
         "mp3_320k": "bestaudio/best",
-        "mp4_max": "bestvideo[height=720]+bestaudio/best[height=720]",
+        "mp4_max": "bestvideo[height>=720]+bestaudio/best[height>=720]",
     }
     selected_format = FORMAT_MAP.get(
-        quality_profile, "bestvideo[height=360]+bestaudio/best[height=360]"
+        quality_profile, "bestvideo[height>=360]+bestaudio/best[height>=360]"
     )
     if ext in ("mp3", "m4a") and quality_profile not in FORMAT_MAP:
         selected_format = "bestaudio/best"
@@ -415,29 +415,14 @@ async def stream_youtube_bytes(
             if ext in ("mp3", "m4a"):
                 formatos_para_tentar.extend(["bestaudio", "best", "worstaudio/worst"])
             elif ext == "mp4":
-                # Para MP4: priorizar progressivo na altura exata, depois DASH, depois any
-                if (
-                    "720" in selected_format
-                    or "480" in selected_format
-                    or "360" in selected_format
-                ):
-                    altura = (
-                        selected_format.split("height=")[1].split("]")[0]
-                        if "height=" in selected_format
-                        else "720"
-                    )
-                    formatos_para_tentar.extend(
-                        [
-                            f"best[height={altura}][ext=mp4]",
-                            "best[ext=mp4]",
-                            f"bestvideo[height={altura}]+bestaudio",
-                            "bestvideo+bestaudio",
-                            "best",
-                            "worst",
-                        ]
-                    )
-                else:
-                    formatos_para_tentar.extend(["best[ext=mp4]", "best", "worst"])
+                formatos_para_tentar.extend(
+                    [
+                        "bestvideo+bestaudio",
+                        "best[ext=mp4]",
+                        "best",
+                        "worst",
+                    ]
+                )
             else:
                 formatos_para_tentar.extend(["best", "worst"])
 
