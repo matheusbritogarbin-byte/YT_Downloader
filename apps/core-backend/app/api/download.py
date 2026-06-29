@@ -342,8 +342,10 @@ async def stream_youtube_bytes(
     if postprocessors:
         ydl_opts["postprocessors"] = postprocessors
 
-    def extrair_url_stream_robusta(formats: list[dict[str, Any]], ext: str) -> str:
-        """Varre formats procurando por URL de stream com melhor qualidade."""
+    def extrair_url_stream_robusta(
+        formats: list[dict[str, Any]], ext: str, target_h: int = 0
+    ) -> str:
+        """Seleciona stream por proximidade de altura (target_h) e tipo."""
         if not formats:
             return ""
 
@@ -410,12 +412,20 @@ async def stream_youtube_bytes(
     resolved_url = ""
     for tentativa in range(MAX_RETRIES):
         try:
-            # Tentar múltiplos formatos em ordem de preferência
             formatos_para_tentar = [selected_format]
             if ext in ("mp3", "m4a"):
                 formatos_para_tentar.extend(["bestaudio", "best", "worstaudio/worst"])
             else:
-                formatos_para_tentar.extend(["best[ext=mp4]", "best", "worst"])
+                formatos_para_tentar.extend(
+                    [
+                        "bestvideo+bestaudio",
+                        "best[ext=mp4]",
+                        "bestvideo[ext=mp4]+bestaudio",
+                        f"bestvideo[height>={target_h}]+bestaudio",
+                        "best",
+                        "worst",
+                    ]
+                )
 
             for fmt_try in formatos_para_tentar:
                 try:
@@ -432,7 +442,9 @@ async def stream_youtube_bytes(
                         else:
                             merged_formats = formats
 
-                        resolved_url = extrair_url_stream_robusta(merged_formats, ext)
+                        resolved_url = extrair_url_stream_robusta(
+                            merged_formats, ext, target_h=target_h
+                        )
 
                         if resolved_url:
                             break
