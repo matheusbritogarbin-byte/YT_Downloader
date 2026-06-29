@@ -385,7 +385,29 @@ async def stream_youtube_bytes(
             if ext in ("mp3", "m4a"):
                 formatos_para_tentar.extend(["bestaudio", "best", "worstaudio/worst"])
             elif ext == "mp4":
-                formatos_para_tentar.extend(["best[ext=mp4]", "best", "worst"])
+                # Para MP4: priorizar progressivo na altura exata, depois DASH, depois any
+                if (
+                    "720" in selected_format
+                    or "480" in selected_format
+                    or "360" in selected_format
+                ):
+                    altura = (
+                        selected_format.split("height=")[1].split("]")[0]
+                        if "height=" in selected_format
+                        else "720"
+                    )
+                    formatos_para_tentar.extend(
+                        [
+                            f"best[height={altura}][ext=mp4]",
+                            "best[ext=mp4]",
+                            f"bestvideo[height={altura}]+bestaudio",
+                            "bestvideo+bestaudio",
+                            "best",
+                            "worst",
+                        ]
+                    )
+                else:
+                    formatos_para_tentar.extend(["best[ext=mp4]", "best", "worst"])
             else:
                 formatos_para_tentar.extend(["best", "worst"])
 
