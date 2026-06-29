@@ -12,9 +12,6 @@ import redis.asyncio as aioredis
 
 router = APIRouter(prefix="/download", tags=["Media Downloader"])
 
-CACHE_TTL_SECONDS = 3600
-MAX_RETRIES = 3
-RETRY_DELAYS = [1, 2, 4]
 QUOTA_MAX_FREE_DAILY = 2
 
 YOUTUBE_REGEX = re.compile(
@@ -208,45 +205,11 @@ async def process_youtube_video(
         )
 
     # Só incrementa quota se houver pelo menos um download bem-sucedido E NÃO for premium
-    if sucessos > 0 | 1 and not await is_premium_user(request.token):
+    if sucessos > 0 and not await is_premium_user(request.token):
         await incrementar_quota(ip)
 
     return BatchDownloadResponse(results=results_list)
 
-
-async def get_cookies_file() -> str | None:
-    """Busca cookies: env var YT_COOKIES > Redis > arquivo local."""
-    import tempfile
-
-    # 1. Prioridade máxima: variável de ambiente YT_COOKIES
-    env_cookies = os.getenv("YT_COOKIES")
-    if env_cookies and env_cookies.strip():
-        try:
-            temp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-            temp.write(env_cookies.strip())
-            temp.close()
-            return temp.name
-        except Exception:
-            pass
-
-    # 2. Fallback: Redis (salvo via update_cookies.py)
-    try:
-        cookies_text = await redis_client.get("yt_cookies")
-        if cookies_text and cookies_text.strip():
-            temp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-            temp.write(cookies_text)
-            temp.close()
-            return temp.name
-    except Exception:
-        pass
-
-    # 3. Último fallback: arquivo local
-    base = os.path.dirname(__file__)
-    for name in ["cookies.txt", "youtube_cookies.txt"]:
-        local_path = os.path.join(base, "../../../", name)
-        if os.path.exists(local_path):
-            return local_path
-    return None
 
 
 @router.get("/stream")
@@ -327,7 +290,7 @@ async def stream_youtube_bytes(
         formats: list[dict[str, Any]],
         ext: str,
     ) -> str:
-        """Seleciona stream por proximidade de altura (target_h) e tipo."""
+        """Varre formats procurando URL de stream progressiva (video+audio) com maior qualidade."""
         if not formats:
             return ""
 
@@ -391,7 +354,6 @@ async def stream_youtube_bytes(
                 return str(url)
         return ""
 
-    resolved_url = ""
     resolved_url = ""
     try:
         ydl_opts_try = {**ydl_opts}
