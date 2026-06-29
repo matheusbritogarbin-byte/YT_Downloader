@@ -411,10 +411,10 @@ async def stream_youtube_bytes(
                 try:
                     ydl_opts_try = {**ydl_opts, "format": fmt_try}
                     with yt_dlp.YoutubeDL(cast(Any, ydl_opts_try)) as ydl:
-                        info = ydl.extract_info(url_real, download=False) or {}
+                        print(f"[DEBUG] Formato tentado: {fmt_try}"); info = ydl.extract_info(url_real, download=False) or {}
                         video_title = str(info.get("title", video_title))
                         formats = list(info.get("formats", []))
-                        resolved_url = extrair_url_stream_robusta(formats, ext)
+                        print(f"[DEBUG] Formatos encontrados: {len(formats)}"); resolved_url = extrair_url_stream_robusta(formats, ext)
 
                         if resolved_url:
                             break
@@ -504,7 +504,7 @@ async def debug_formatos(url: str) -> dict[str, Any]:
 
     try:
         with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-            info = ydl.extract_info(url_real, download=False) or {}
+            print(f"[DEBUG] Formato tentado: {fmt_try}"); info = ydl.extract_info(url_real, download=False) or {}
             formats = list(info.get("formats", []))
 
             top_formatos = []
