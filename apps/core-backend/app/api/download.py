@@ -278,8 +278,8 @@ async def stream_youtube_bytes(
     # Mapeamento de qualidade → formato yt-dlp
     FORMAT_MAP = {
         "mp4_360p": "bestvideo[height>=360]+bestaudio/best[height>=360]",
-        "mp4_480p": f"bestvideo[height>=480]+bestaudio[ext=m4a]/best[height>=480]/best",
-        "mp4_720p": f"bestvideo[height>=720]+bestaudio[ext=m4a]/best[height>=720]/best",
+        "mp4_480p": "bestvideo[height>=480]+bestaudio/best[height>=480]/best",
+        "mp4_720p": "bestvideo[height>=720]+bestaudio/best[height>=720]/best",
         "mp3_128k": "bestaudio/best",
         "mp3_192k": "bestaudio/best",
         "mp3_320k": "bestaudio/best",
