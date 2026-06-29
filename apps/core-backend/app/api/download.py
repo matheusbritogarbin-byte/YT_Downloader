@@ -133,15 +133,6 @@ def extrair_midia_com_seguranca(url: str) -> dict[str, Any]:
         )
 
     tamanho_estimado = 0
-    if video_id:
-        try:
-            with httpx.Client(timeout=5.0) as client:
-                resp = client.get(f"https://www.youtube.com/watch?v={video_id}")
-                size_match = re.search(r'"contentLength":"(\d+)"', resp.text)
-                if size_match:
-                    tamanho_estimado = int(size_match.group(1))
-        except Exception:
-            pass
 
     return {
         "title": str(title),
@@ -278,7 +269,9 @@ async def stream_youtube_bytes(
     if ext in ("mp3", "m4a"):
         selected_format = "bestaudio/best"
     else:
-        selected_format = "best"
+        height_map = {"mp4_360p": 360, "mp4_480p": 480, "mp4_720p": 720, "mp4_max": 720}
+        target_h = height_map.get(quality_profile, 360)
+        selected_format = f"best[height<={target_h}]/best"
 
     postprocessors = None
     if ext == "mp3":
@@ -326,6 +319,9 @@ async def stream_youtube_bytes(
 
     if postprocessors:
         ydl_opts["postprocessors"] = postprocessors
+    if ext == "mp3":
+        ydl_opts["audioformat"] = "mp3"
+        ydl_opts["audioquality"] = quality_map.get(quality_profile, "320")
 
     def extrair_url_stream_robusta(
         formats: list[dict[str, Any]],
@@ -568,4 +564,3 @@ async def save_cookies_file(fastapi_request: Request) -> dict[str, str]:
     _validar_admin_token(fastapi_request)
     await redis_client.setex("yt_cookies", 2592000, cookies_text)  # 30 dias
     return {"status": "ok", "mensagem": "Cookies salvos com sucesso!"}
-
