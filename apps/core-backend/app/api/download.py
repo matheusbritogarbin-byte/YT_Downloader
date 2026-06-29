@@ -211,7 +211,6 @@ async def process_youtube_video(
     return BatchDownloadResponse(results=results_list)
 
 
-
 @router.get("/stream")
 async def stream_youtube_bytes(
     url: str,
@@ -232,9 +231,9 @@ async def stream_youtube_bytes(
     if ext in ("mp3", "m4a"):
         selected_format = "bestaudio/best"
     else:
-        height_map = {"mp4_360p": 360, "mp4_480p": 480, "mp4_720p": 720, "mp4_max": 720}
+        height_map = {"mp4_360p": 360}
         target_h = height_map.get(quality_profile, 360)
-        selected_format = f"best[height<={target_h}]/best"
+        selected_format = f"best[height>={target_h}]/best"
 
     postprocessors = None
     if ext == "mp3":
