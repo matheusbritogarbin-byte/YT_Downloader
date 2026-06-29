@@ -2,11 +2,11 @@ import asyncio
 import os
 import re
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, cast
 import httpx
-from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import redis.asyncio as aioredis
 
@@ -217,7 +217,7 @@ async def process_youtube_video(
         )
 
     # Só incrementa quota se houver pelo menos um download bem-sucedido E NÃO for premium
-    if sucessos > 0 and not await is_premium_user(request.token):
+    if sucessos > 0 | 1 and not await is_premium_user(request.token):
         await incrementar_quota(ip)
 
     return BatchDownloadResponse(results=results_list)
@@ -263,7 +263,7 @@ async def stream_youtube_bytes(
     url: str,
     title: str = "video",
     ext: str = "mp3",
-    quality_profile: str = "mp4_max",
+    quality_profile: str = "mp4_360p",
 ) -> StreamingResponse:
     """Stream de áudio/vídeo com qualidade seleccionável."""
     if not url:
@@ -286,7 +286,6 @@ async def stream_youtube_bytes(
             "mp3_320k": "320",
             "mp3_192k": "192",
             "mp3_128k": "128",
-            "mp3_64k": "64",
         }
         postprocessors = [
             {
@@ -308,6 +307,7 @@ async def stream_youtube_bytes(
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
+        "force_ipv4": True,
         "format": selected_format,
         "merge_output_format": "mp4",
         "extractor_args": {
@@ -324,15 +324,12 @@ async def stream_youtube_bytes(
         },
     }
 
-    cookies_file = await get_cookies_file()
-    if cookies_file:
-        ydl_opts["cookiefile"] = cookies_file
-
     if postprocessors:
         ydl_opts["postprocessors"] = postprocessors
 
     def extrair_url_stream_robusta(
-        formats: list[dict[str, Any]], ext: str, target_h: int = 0
+        formats: list[dict[str, Any]],
+        ext: str,
     ) -> str:
         """Seleciona stream por proximidade de altura (target_h) e tipo."""
         if not formats:
@@ -399,35 +396,16 @@ async def stream_youtube_bytes(
         return ""
 
     resolved_url = ""
-    for tentativa in range(MAX_RETRIES):
-        try:
-            formatos_para_tentar = [selected_format]
-            if ext in ("mp3", "m4a"):
-                formatos_para_tentar.extend(["bestaudio", "best", "worstaudio/worst"])
-            else:
-                formatos_para_tentar.extend(["best[ext=mp4]", "best", "worst"])
-
-            for fmt_try in formatos_para_tentar:
-                try:
-                    ydl_opts_try = {**ydl_opts, "format": fmt_try}
-                    with yt_dlp.YoutubeDL(cast(Any, ydl_opts_try)) as ydl:
-                        print(f"[DEBUG] Formato tentado: {fmt_try}"); info = ydl.extract_info(url_real, download=False) or {}
-                        video_title = str(info.get("title", video_title))
-                        formats = list(info.get("formats", []))
-                        print(f"[DEBUG] Formatos encontrados: {len(formats)}"); resolved_url = extrair_url_stream_robusta(formats, ext)
-
-                        if resolved_url:
-                            break
-                except Exception:
-                    continue
-
-            if resolved_url:
-                break
-        except Exception:
-            resolved_url = ""
-            if tentativa < MAX_RETRIES - 1:
-                await asyncio.sleep(RETRY_DELAYS[tentativa])
-
+    resolved_url = ""
+    try:
+        ydl_opts_try = {**ydl_opts}
+        with yt_dlp.YoutubeDL(cast(Any, ydl_opts_try)) as ydl:
+            info = ydl.extract_info(url_real, download=False) or {}
+            video_title = str(info.get("title", video_title))
+            formats = list(info.get("formats", []))
+            resolved_url = extrair_url_stream_robusta(formats, ext)
+    except Exception:
+        resolved_url = ""
     if not resolved_url or not str(resolved_url).startswith("http"):
         raise HTTPException(
             status_code=502,
@@ -483,55 +461,6 @@ def _validar_admin_token(request: Request) -> None:
 @router.get("/health")
 async def health_check() -> dict[str, str]:
     return {"status": "ok", "service": "yt-downloader", "version": "2.0"}
-
-
-@router.get("/debug/formats")
-async def debug_formatos(url: str) -> dict[str, Any]:
-    """Endpoint temporário para ver formatos disponíveis."""
-    url_real = urllib.parse.unquote_plus(url)
-    import yt_dlp
-
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "format": "bestvideo+bestaudio/best",
-        "extractor_args": {"youtube": {"player_client": ["web"]}},
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        },
-    }
-
-    try:
-        with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-            print(f"[DEBUG] Formato tentado: {fmt_try}"); info = ydl.extract_info(url_real, download=False) or {}
-            formats = list(info.get("formats", []))
-
-            top_formatos = []
-            for f in formats[-10:]:
-                top_formatos.append(
-                    {
-                        "format_id": f.get("format_id"),
-                        "ext": f.get("ext"),
-                        "resolution": f.get("resolution"),
-                        "vcodec": f.get("vcodec"),
-                        "acodec": f.get("acodec"),
-                        "filesize": f.get("filesize"),
-                        "height": f.get("height"),
-                        "width": f.get("width"),
-                    }
-                )
-
-            return {
-                "title": info.get("title"),
-                "total_formats": len(formats) if formats else 0,
-                "top_10": top_formatos[::-1],
-                "requested_formats": [
-                    f.get("format_id") for f in list(info.get("requested_formats", []))
-                ],
-            }
-    except Exception as e:
-        return {"erro": str(e)}
 
 
 @router.get("/stats")
@@ -639,3 +568,4 @@ async def save_cookies_file(fastapi_request: Request) -> dict[str, str]:
     _validar_admin_token(fastapi_request)
     await redis_client.setex("yt_cookies", 2592000, cookies_text)  # 30 dias
     return {"status": "ok", "mensagem": "Cookies salvos com sucesso!"}
+
